@@ -6,7 +6,32 @@ export function CartProvider({ children }) {
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem("cart");
-      return savedCart ? JSON.parse(savedCart) : [];
+      if (!savedCart) return [];
+      
+      const parsedCart = JSON.parse(savedCart);
+      let validCart = [];
+      let removedItems = 0;
+
+      for (const item of parsedCart) {
+        const variantId = item.variantId || item.configuration?.variantId || item.product?.variants?.[0]?.id;
+        const variantExists = item.product?.variants?.some(v => v.id === variantId);
+        
+        if (item.product && variantExists) {
+          validCart.push({ ...item, variantId });
+        } else {
+          removedItems++;
+        }
+      }
+
+      if (removedItems > 0) {
+        setTimeout(() => {
+          // Using a simple timeout to ensure DOM is ready for any global toast if available,
+          // though typically context doesn't mount toast directly.
+          console.warn(`${removedItems} stale cart items were removed because they are no longer available.`);
+        }, 1000);
+      }
+
+      return validCart;
     } catch {
       return [];
     }
@@ -42,12 +67,16 @@ export function CartProvider({ children }) {
   }, [checkoutData]);
 
   const addToCart = (product, quantity = 1, configuration = {}) => {
+    const { variantId, ...restConfig } = configuration;
+    const finalVariantId = variantId || product?.variants?.[0]?.id;
+
     setCart((previous) => {
       const existingIndex = previous.findIndex(
         (item) =>
           item.product.id === product.id &&
+          item.variantId === finalVariantId &&
           JSON.stringify(item.configuration) ===
-            JSON.stringify(configuration)
+            JSON.stringify(restConfig)
       );
 
       if (existingIndex !== -1) {
@@ -66,8 +95,9 @@ export function CartProvider({ children }) {
         {
           id: `${product.id}-${Date.now()}`,
           product,
+          variantId: finalVariantId,
           quantity,
-          configuration,
+          configuration: restConfig,
         },
       ];
     });

@@ -57,6 +57,31 @@ const createRentalOrder = asyncHandler(async (req, res) => {
   }
 
   const order = await prisma.$transaction(async (tx) => {
+    // 1. Verify date-based availability for all line items
+    for (const line of processedLines) {
+      const variant = await tx.productVariant.findUnique({ where: { id: line.variantId }, include: { product: true } });
+      if (!variant) throw new ApiError(400, `Selected product variant is no longer available (ID: ${line.variantId}).`);
+
+      const overlappingOrders = await tx.rentalOrderLine.aggregate({
+        _sum: { quantity: true },
+        where: {
+          variantId: line.variantId,
+          order: {
+            status: { in: ["CONFIRMED", "PICKED_UP", "ACTIVE"] },
+            rentalStart: { lt: new Date(rentalEnd) },
+            rentalEnd: { gt: new Date(rentalStart) }
+          }
+        }
+      });
+      const reservedQty = overlappingOrders._sum.quantity || 0;
+      const availableQty = variant.quantityTotal - reservedQty;
+
+      if (availableQty < line.quantity) {
+        throw new ApiError(400, `Product variant ${line.variantId} is not available for the selected dates. Only ${availableQty} left.`);
+      }
+    }
+
+    // 2. Create the order safely
     const created = await tx.rentalOrder.create({
       data: {
         orderNumber,
@@ -90,6 +115,7 @@ const createRentalOrder = asyncHandler(async (req, res) => {
     });
 
     if (status === "CONFIRMED") {
+      // 3. Create StockMovement and Notification
       for (const line of processedLines) {
         await tx.stockMovement.create({
           data: {
@@ -98,12 +124,23 @@ const createRentalOrder = asyncHandler(async (req, res) => {
             type: "RESERVED",
             quantity: -line.quantity,
           },
-        }).catch(() => {}); // Catch in case StockMovement type isn't RESERVED
+        }).catch(() => {});
 
-        await tx.productVariant.update({
-          where: { id: line.variantId },
-          data: { quantityAvailable: { decrement: line.quantity } },
-        });
+        // NOTE: We NO LONGER decrement quantityAvailable directly.
+        // True availability is determined dynamically by date ranges.
+      }
+      
+      // Notify vendor
+      const firstLineProduct = created.lines[0]?.variant?.product;
+      if (firstLineProduct?.vendorId) {
+        await tx.notification.create({
+          data: {
+            type: "ORDER_CONFIRMED",
+            channel: "EMAIL",
+            recipientId: firstLineProduct.vendorId,
+            orderId: created.id,
+          }
+        }).catch(() => {});
       }
     }
 

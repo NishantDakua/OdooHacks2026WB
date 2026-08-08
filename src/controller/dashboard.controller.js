@@ -5,6 +5,13 @@ import { asyncHandler } from "../utils/async-handler.js";
 // Get key performance metrics for vendor/admin dashboard
 const getDashboardMetrics = asyncHandler(async (req, res) => {
   const now = new Date();
+  
+  // Scoping for vendor
+  const isVendor = req.user?.role === "ADMIN";
+  const vendorFilter = isVendor ? { vendorId: req.user.id } : {};
+  const orderFilter = isVendor ? {
+    lines: { some: { variant: { product: { vendorId: req.user.id } } } }
+  } : {};
 
   const [
     totalOrdersCount,
@@ -17,18 +24,20 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
     depositStats,
     paymentStats,
   ] = await Promise.all([
-    prisma.rentalOrder.count(),
-    prisma.rentalOrder.count({ where: { status: "PICKED_UP" } }),
-    prisma.rentalOrder.count({ where: { status: "CONFIRMED" } }),
-    prisma.rentalOrder.count({ where: { status: "RETURNED" } }),
+    prisma.rentalOrder.count({ where: orderFilter }),
+    prisma.rentalOrder.count({ where: { status: "PICKED_UP", ...orderFilter } }),
+    prisma.rentalOrder.count({ where: { status: "CONFIRMED", ...orderFilter } }),
+    prisma.rentalOrder.count({ where: { status: "RETURNED", ...orderFilter } }),
     prisma.rentalOrder.count({
       where: {
         status: "PICKED_UP",
         rentalEnd: { lt: now },
+        ...orderFilter
       },
     }),
-    prisma.product.count(),
+    prisma.product.count({ where: vendorFilter }),
     prisma.rentalOrder.findMany({
+      where: orderFilter,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -37,6 +46,7 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
       },
     }),
     prisma.deposit.aggregate({
+      where: isVendor ? { order: orderFilter } : undefined,
       _sum: {
         amountCollected: true,
         totalDeduction: true,
@@ -44,7 +54,7 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
       },
     }),
     prisma.payment.aggregate({
-      where: { status: "SUCCESS" },
+      where: { status: "SUCCESS", ...(isVendor ? { order: orderFilter } : {}) },
       _sum: { amount: true },
     }),
   ]);
@@ -67,4 +77,30 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
   );
 });
 
-export { getDashboardMetrics };
+const getNotifications = asyncHandler(async (req, res) => {
+  const notifications = await prisma.notification.findMany({
+    where: { recipientId: req.user.id },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: {
+      order: {
+        select: { orderNumber: true }
+      }
+    }
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, notifications, "Notifications fetched successfully")
+  );
+});
+
+const markNotificationRead = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  await prisma.notification.update({
+    where: { id, recipientId: req.user.id },
+    data: { status: "SENT" } // using SENT as 'read' status
+  });
+  return res.status(200).json(new ApiResponse(200, null, "Marked as read"));
+});
+
+export { getDashboardMetrics, getNotifications, markNotificationRead };

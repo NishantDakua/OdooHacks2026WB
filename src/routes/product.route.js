@@ -8,6 +8,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getProductAvailability,
 } from "../controller/product.controller.js";
 import { verifyJWT, verifyRole } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/multer.middleware.js";
@@ -22,6 +23,7 @@ router.route("/upload-image").post(verifyJWT, upload.single("image"), uploadProd
 
 // Product routes
 router.route("/").get(getProducts).post(verifyJWT, verifyRole(["ADMIN", "STAFF"]), createProduct);
+router.route("/:id/availability").get(getProductAvailability);
 router.route("/:id")
   .get(getProductById)
   .patch(verifyJWT, verifyRole(["ADMIN", "STAFF"]), updateProduct)

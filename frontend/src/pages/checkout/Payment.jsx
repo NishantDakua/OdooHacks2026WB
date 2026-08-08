@@ -35,11 +35,16 @@ function Payment() {
         storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       } catch {}
 
-      const rentalStart = new Date();
-      const rentalEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      // Extract dates from cart item configuration, or fallback
+      const firstItemConfig = cart[0]?.configuration || {};
+      const rentalStartStr = firstItemConfig["Rental Start"];
+      const rentalEndStr = firstItemConfig["Rental End"];
+      
+      const rentalStart = rentalStartStr ? new Date(rentalStartStr) : new Date();
+      const rentalEnd = rentalEndStr ? new Date(rentalEndStr) : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
       const lines = cart.map((item) => ({
-        variantId: item.product.variants?.[0]?.id || item.product.id,
+        variantId: item.variantId || item.configuration?.variantId || item.product.variants?.[0]?.id || item.product.id,
         quantity: Number(item.quantity || 1),
         unitPrice: Number(item.product.price || item.product.rentalPrice || 500),
       }));
@@ -64,16 +69,10 @@ function Payment() {
       });
 
       const json = await res.json();
-      let createdOrder = json.data;
-
-      if (!createdOrder) {
-        createdOrder = {
-          id: Date.now().toString(),
-          orderNumber: `R${Math.floor(10000 + Math.random() * 90000)}`,
-          status: "CONFIRMED",
-          total: finalTotal,
-        };
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Failed to create rental order.");
       }
+      const createdOrder = json.data;
 
       // Record invoice and payment
       if (createdOrder?.id) {
@@ -128,7 +127,7 @@ function Payment() {
       clearCart();
       navigate("/checkout/success");
     } catch (err) {
-      setAlertMessage("Payment processing failed. Please try again.");
+      setAlertMessage(err.message || "Payment processing failed. Please try again.");
     }
   };
 

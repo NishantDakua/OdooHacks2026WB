@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import prisma from "../db/prisma.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
@@ -41,6 +42,17 @@ const getProducts = asyncHandler(async (req, res) => {
       { name: { contains: search, mode: "insensitive" } },
       { description: { contains: search, mode: "insensitive" } },
     ];
+  }
+
+  // Handle vendor scoping
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "rentease-secret-key-123");
+      if (decoded.role === "ADMIN") {
+        where.vendorId = decoded.id; // vendor sees only their products
+      }
+    } catch (err) {}
   }
 
   const products = await prisma.product.findMany({
@@ -113,6 +125,7 @@ const createProduct = asyncHandler(async (req, res) => {
       name,
       description,
       categoryId: categoryId || null,
+      vendorId: req.user.role === "ADMIN" ? req.user.id : null,
       images,
       variants: {
         create: variants.map((v, idx) => ({
@@ -168,6 +181,72 @@ const deleteProduct = asyncHandler(async (req, res) => {
   );
 });
 
+const getProductAvailability = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { startDate, endDate, quantity = 1, variantId } = req.query;
+
+  if (!startDate || !endDate) {
+    throw new ApiError(400, "startDate and endDate are required");
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (start >= end) {
+    throw new ApiError(400, "endDate must be strictly after startDate");
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: { variants: true }
+  });
+
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  let variant;
+  if (variantId) {
+    variant = product.variants.find(v => v.id === variantId);
+    if (!variant) {
+      throw new ApiError(404, `Variant ${variantId} not found for this product`);
+    }
+  } else {
+    variant = product.variants[0];
+    if (!variant) {
+      throw new ApiError(404, "Product has no variants");
+    }
+  }
+
+  // Find overlapping rentals
+  const overlappingOrders = await prisma.rentalOrderLine.aggregate({
+    _sum: { quantity: true },
+    where: {
+      variantId: variant.id,
+      order: {
+        status: { in: ["CONFIRMED", "PICKED_UP", "ACTIVE"] },
+        rentalStart: { lt: end },
+        rentalEnd: { gt: start }
+      }
+    }
+  });
+
+  const reservedQty = overlappingOrders._sum.quantity || 0;
+  const availableQty = variant.quantityTotal - reservedQty;
+
+  const isAvailable = availableQty >= Number(quantity);
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      availableQty,
+      requestedQty: Number(quantity),
+      isAvailable,
+      reservedQty,
+      totalQty: variant.quantityTotal
+    }, "Availability checked")
+  );
+});
+
 export {
   getCategories,
   createCategory,
@@ -177,4 +256,5 @@ export {
   createProduct,
   updateProduct,
   deleteProduct,
+  getProductAvailability,
 };

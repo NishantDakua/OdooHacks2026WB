@@ -147,6 +147,7 @@ model User {
   ordersCreated    RentalOrder[] @relation("StaffCreatedOrders")
   inspectionsDone  Inspection[]  @relation("InspectedBy")
   notifications    Notification[]
+  vendorProducts   Product[]     @relation("VendorProducts")
 
   @@index([role])
 }
@@ -184,6 +185,8 @@ model Product {
   description String?
   categoryId  String?
   category    Category? @relation(fields: [categoryId], references: [id])
+  vendorId    String?
+  vendor      User?     @relation("VendorProducts", fields: [vendorId], references: [id])
   images      String[]
   isRentable  Boolean   @default(true)
   createdAt   DateTime  @default(now())

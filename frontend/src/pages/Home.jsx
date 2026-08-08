@@ -352,7 +352,7 @@ function Home() {
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-semibold">Available Products</h2>
                 <span className="rounded-full bg-[#e9f6f5] px-2.5 py-1 text-xs font-semibold text-[#4f8c89]">
-                  {filteredProducts.length} items
+                  {loading ? "..." : filteredProducts.length} items
                 </span>
               </div>
               <p className="mt-1 text-sm text-gray-500">
