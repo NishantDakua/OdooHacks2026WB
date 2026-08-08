@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWishlist } from "../../context/WishlistContext";
 
 function Sidebar({ wishlistCount = 0 }) {
   const navigate = useNavigate();
+  const { wishlistCount: sharedWishlistCount } = useWishlist();
 
   const [user, setUser] = useState({
     name: "Customer",
@@ -36,16 +38,24 @@ function Sidebar({ wishlistCount = 0 }) {
   const firstLetter = user.name
     ? user.name.charAt(0).toUpperCase()
     : "C";
+  const effectiveWishlistCount = sharedWishlistCount ?? wishlistCount;
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-[220px] flex-col border-r border-gray-200 bg-white">
 
       {/* Logo */}
-      <div className="flex h-[76px] items-center border-b border-gray-200 px-6">
+      <div className="flex h-[85px] items-center border-b border-gray-200 px-6">
         <button
           type="button"
           onClick={() => navigate("/home")}
           className="text-2xl font-bold tracking-tight"
+          aria-label="Go to home"
         >
           Rent<span className="text-[#4f8c89]">Ease</span>
         </button>
@@ -131,9 +141,9 @@ function Sidebar({ wishlistCount = 0 }) {
             Wishlist
           </span>
 
-          {wishlistCount > 0 && (
+          {effectiveWishlistCount > 0 && (
             <span className="rounded-full bg-[#4f8c89] px-2 py-0.5 text-[10px] font-bold text-white">
-              {wishlistCount}
+              {effectiveWishlistCount}
             </span>
           )}
         </button>
@@ -213,6 +223,14 @@ function Sidebar({ wishlistCount = 0 }) {
             />
           </svg>
 
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-3 flex w-full items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+        >
+          Logout
         </button>
 
       </div>

@@ -6,38 +6,121 @@ import VendorSignup from "./pages/VendorSignup";
 import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
+import { CartProvider } from "./context/CartContext";
+import Cart from "./pages/Cart";
+import Wishlist from "./pages/Wishlist";
+import About from "./pages/About";
+import Terms from "./pages/Terms";
+import Contact from "./pages/Contact";
+import Profile from "./pages/Profile";
+import Rentals from "./pages/Rentals";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
+import { WishlistProvider } from "./context/WishlistContext";
 
 function App() {
+  const isAuthenticated = Boolean(localStorage.getItem("token"));
+
   return (
-    <BrowserRouter>
-      <Routes>
+    <WishlistProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Authentication */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/vendor-signup" element={<VendorSignup />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Authentication */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/vendor-signup" element={<VendorSignup />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+            {/* Default route */}
+            <Route path="/" element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} />
 
-        {/* Default route */}
-        <Route
-          path="/"
-          element={<Navigate to="/login" replace />}
-        />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Unknown routes */}
-        <Route
-          path="*"
-          element={<Navigate to="/login" replace />}
-        />
+            <Route
+              path="/product/:id"
+              element={
+                <ProtectedRoute>
+                  <ProductDetails />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Home route */}
-        <Route path="/home" element={<Home />} />
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <Cart />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Product Details route */}
-        
-      <Route path="/product/:id"element={<ProductDetails />}/>
-      </Routes>
-    </BrowserRouter>
+            <Route
+              path="/wishlist"
+              element={
+                <ProtectedRoute>
+                  <Wishlist />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/about"
+              element={
+                <ProtectedRoute>
+                  <About />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/terms"
+              element={
+                <ProtectedRoute>
+                  <Terms />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/contact"
+              element={
+                <ProtectedRoute>
+                  <Contact />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/rentals"
+              element={
+                <ProtectedRoute>
+                  <Rentals />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Unknown routes */}
+            <Route path="*" element={<Navigate to={isAuthenticated ? "/home" : "/login"} replace />} />
+          </Routes>
+        </BrowserRouter>
+      </CartProvider>
+    </WishlistProvider>
   );
 }
 
