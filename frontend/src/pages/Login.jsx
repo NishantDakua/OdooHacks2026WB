@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
 import AlertPopup from "../components/ui/AlertPopup";
@@ -10,6 +10,14 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [alertState, setAlertState] = useState({ show: false, message: "", onConfirm: null });
+
+  // If already logged in, redirect directly to dashboard
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,7 +37,6 @@ function Login() {
         throw new Error(result.message || "Invalid email or password");
       }
 
-      // Save token and user in localStorage
       localStorage.setItem("token", result.data.token);
       localStorage.setItem("user", JSON.stringify(result.data.user));
 

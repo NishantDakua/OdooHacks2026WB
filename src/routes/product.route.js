@@ -4,16 +4,21 @@ import {
   createCategory,
   getProducts,
   getProductById,
+  uploadProductImage,
   createProduct,
   updateProduct,
   deleteProduct,
 } from "../controller/product.controller.js";
 import { verifyJWT, verifyRole } from "../middleware/auth.middleware.js";
+import { upload } from "../middleware/multer.middleware.js";
 
 const router = Router();
 
 // Category routes
 router.route("/categories").get(getCategories).post(verifyJWT, verifyRole(["ADMIN", "STAFF"]), createCategory);
+
+// Image upload route (Cloudinary)
+router.route("/upload-image").post(verifyJWT, upload.single("image"), uploadProductImage);
 
 // Product routes
 router.route("/").get(getProducts).post(verifyJWT, verifyRole(["ADMIN", "STAFF"]), createProduct);
