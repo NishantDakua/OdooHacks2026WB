@@ -12,6 +12,8 @@ import { useWishlist } from "../context/WishlistContext";
 
 function Home() {
   const navigate = useNavigate();
+  const { addToCart, cartCount } = useCart();
+  const { wishlistItems, toggleWishlist: toggleWishlistCtx } = useWishlist();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,9 @@ function Home() {
     fetchProducts();
     
     return () => abortController.abort();
+  }, []);
+
+    fetchProducts();
   }, []);
 
   /* ================= CONFIGURE MODAL ================= */

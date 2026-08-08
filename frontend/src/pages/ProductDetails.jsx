@@ -11,6 +11,8 @@ import AlertPopup from "../components/ui/AlertPopup";
 function ProductDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
 
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
@@ -131,47 +133,11 @@ function ProductDetails() {
     setAlertMessage(`Added ${quantity} x ${product.name} to cart!`);
   };
 
-  return (
-    <div className="h-screen overflow-hidden bg-[#f5fbfb] text-black">
-      <Sidebar />
-
-      <main className="ml-[250px] flex h-screen min-h-0 flex-col">
-        <header className="h-[68px] shrink-0 border-b border-gray-200 bg-white">
-          <div className="flex h-full items-center justify-between px-7">
-            <div>
-              <h1 className="text-xl font-semibold text-black">
-                Product Details
-              </h1>
-              <p className="text-xs text-gray-500">
-                View product information and rental options
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsWishlisted((previous) => !previous)}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
-                  isWishlisted
-                    ? "border-[#4f8c89] bg-[#e9f6f5] text-[#4f8c89]"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-[#4f8c89]"
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill={isWishlisted ? "currentColor" : "none"}
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.8"
-                  stroke="currentColor"
-                  className="h-5 w-5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"
-                  />
-                </svg>
-              </button>
+  const handleConfigurationConfirm = (options) => {
+    addToCart(product, quantity, options);
+    setToastMessage(`Added ${quantity} x ${product.name} to cart with custom configuration!`);
+    setTimeout(() => setToastMessage(""), 2200);
+  };
 
               <button
                 type="button"
@@ -204,28 +170,27 @@ function ProductDetails() {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col px-7 py-4">
+  if (!product) {
+    return (
+      <AppLayout
+        title="Product Details"
+        subtitle="View product information and rental options"
+      >
+        <div className="flex h-64 flex-col items-center justify-center gap-4">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Product not found
+          </h2>
           <button
             type="button"
             onClick={() => navigate("/home")}
-            className="mb-3 flex h-8 shrink-0 items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-[#4f8c89]"
+            className="rounded-xl bg-[#4f8c89] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#376c69]"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.8"
-              stroke="currentColor"
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m15 18-6-6 6-6"
-              />
-            </svg>
             Back to Products
           </button>
+        </div>
+      </AppLayout>
+    );
+  }
 
           <section className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
             <div className="grid h-full min-h-0 grid-cols-[47%_53%]">
@@ -242,54 +207,86 @@ function ProductDetails() {
                   />
                 </div>
               </div>
+            </div>
 
-              <div className="flex min-h-0 flex-col p-5">
-                <div className="flex shrink-0 items-center justify-between">
-                  <span className="rounded-full bg-[#e9f6f5] px-3 py-1.5 text-xs font-semibold text-[#4f8c89]">
-                    {product.category}
+            {/* Right: Product Info & Actions */}
+            <div className="flex flex-col p-8">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-[#e9f6f5] px-3.5 py-1.5 text-xs font-semibold text-[#4f8c89]">
+                  {product.category}
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-500">
+                    {product.brand}
                   </span>
-                  <span className="text-sm text-gray-500">{product.brand}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleWishlist(product)}
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+                      isWishlisted
+                        ? "border-[#4f8c89] bg-[#e9f6f5] text-[#4f8c89]"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-[#4f8c89]"
+                    }`}
+                    title={
+                      isWishlisted ? "Remove from wishlist" : "Add to wishlist"
+                    }
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill={isWishlisted ? "currentColor" : "none"}
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.8"
+                      stroke="currentColor"
+                      className="h-5 w-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"
+                      />
+                    </svg>
+                  </button>
                 </div>
+              </div>
 
-                <h2 className="mt-2 shrink-0 text-3xl font-bold tracking-tight">
-                  {product.name}
-                </h2>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-900">
+                {product.name}
+              </h1>
 
-                <div className="mt-1 flex shrink-0 items-center gap-2">
-                  <span className="text-[#4f8c89]">★</span>
-                  <span className="text-sm font-semibold">4.8</span>
-                  <span className="text-sm text-gray-500">(98 reviews)</span>
-                </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-amber-400">★</span>
+                <span className="text-sm font-semibold">4.8</span>
+                <span className="text-sm text-gray-500">(98 reviews)</span>
+              </div>
 
-                <p className="mt-3 max-w-2xl shrink-0 text-sm leading-5 text-gray-600">
-                  {product.description}
+              <p className="mt-4 text-sm leading-relaxed text-gray-600">
+                {product.description}
+              </p>
+
+              <div className="my-5 border-t border-gray-100" />
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Rental Rate
                 </p>
-
-                <div className="my-3 shrink-0 border-t border-gray-100" />
-
-                <div className="shrink-0">
-                  <p className="text-xs text-gray-500">Rental price</p>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="text-3xl font-bold">₹{product.price}</span>
-                    <span className="text-sm text-gray-500">
-                      / {product.duration === "Monthly" ? "month" : "day"}
-                    </span>
-                  </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-gray-900">
+                    ₹{product.price}
+                  </span>
+                  <span className="text-sm font-medium text-gray-500">
+                    / {product.duration === "Monthly" ? "month" : "day"}
+                  </span>
                 </div>
+              </div>
 
-                <div className="mt-3 grid shrink-0 grid-cols-3 gap-3">
-                  <div className="rounded-xl bg-[#f5fbfb] px-3 py-2">
-                    <p className="text-[10px] text-gray-500">Category</p>
-                    <p className="mt-0.5 text-sm font-semibold">{product.category}</p>
-                  </div>
-                  <div className="rounded-xl bg-[#f5fbfb] px-3 py-2">
-                    <p className="text-[10px] text-gray-500">Brand</p>
-                    <p className="mt-0.5 text-sm font-semibold">{product.brand}</p>
-                  </div>
-                  <div className="rounded-xl bg-[#f5fbfb] px-3 py-2">
-                    <p className="text-[10px] text-gray-500">Color</p>
-                    <p className="mt-0.5 text-sm font-semibold">{product.color}</p>
-                  </div>
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-gray-100 bg-[#f5fbfb] p-3">
+                  <p className="text-[11px] font-medium text-gray-500">
+                    Category
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                    {product.category}
+                  </p>
                 </div>
 
                 <div className="mt-3 shrink-0 grid grid-cols-2 gap-3">
@@ -359,25 +356,25 @@ function ProductDetails() {
                     disabled={product.quantityAvailable === 0}
                     className="flex-1 rounded-xl bg-[#4f8c89] py-3 text-sm font-semibold text-white transition hover:bg-[#376c69] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Add to Cart
+                    -
                   </button>
+                  <span className="flex-1 text-center text-sm font-semibold text-gray-800">
+                    {quantity}
+                  </span>
                   <button
                     type="button"
                     onClick={handleRentNow}
                     disabled={product.quantityAvailable === 0}
                     className="flex-1 rounded-xl border border-[#4f8c89] bg-white py-3 text-sm font-semibold text-[#4f8c89] transition hover:bg-[#e9f6f5] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Rent Now
+                    +
                   </button>
                 </div>
               </div>
-            </div>
 
         </section>
-
       </div>
 
-      {/* Configure Modal */}
       <ConfigureModal
         isOpen={showConfigure}
         onClose={() => setShowConfigure(false)}
@@ -385,10 +382,10 @@ function ProductDetails() {
         onConfirm={handleConfigurationConfirm}
       />
 
-      <AlertPopup 
-        isOpen={!!alertMessage} 
-        message={alertMessage} 
-        onClose={() => setAlertMessage("")} 
+      <AlertPopup
+        isOpen={!!alertMessage}
+        message={alertMessage}
+        onClose={() => setAlertMessage("")}
       />
 
       </main>
