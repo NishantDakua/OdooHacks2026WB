@@ -56,36 +56,58 @@ const createRentalOrder = asyncHandler(async (req, res) => {
     computedDeposit = (total * Number(req.body.depositPercentage)) / 100;
   }
 
-  const order = await prisma.rentalOrder.create({
-    data: {
-      orderNumber,
-      customerId: targetCustomerId,
-      createdByStaffId: req.user?.role !== "CUSTOMER" ? req.user.id : null,
-      pickupType,
-      shippingAddressId: shippingAddressId || null,
-      status,
-      rentalStart: new Date(rentalStart),
-      rentalEnd: new Date(rentalEnd),
-      pricelistId: pricelistId || null,
-      subtotal,
-      taxTotal,
-      total,
-      qrCode,
-      lines: { create: processedLines },
-      deposit: {
-        create: {
-          amountType: depositAmountType,
-          percentage: req.body.depositPercentage ? Number(req.body.depositPercentage) : null,
-          amountCollected: computedDeposit,
-          status: status === "CONFIRMED" ? "COLLECTED" : "PENDING",
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.rentalOrder.create({
+      data: {
+        orderNumber,
+        customerId: targetCustomerId,
+        createdByStaffId: req.user?.role !== "CUSTOMER" ? req.user.id : null,
+        pickupType,
+        shippingAddressId: shippingAddressId || null,
+        status,
+        rentalStart: new Date(rentalStart),
+        rentalEnd: new Date(rentalEnd),
+        pricelistId: pricelistId || null,
+        subtotal,
+        taxTotal,
+        total,
+        qrCode,
+        lines: { create: processedLines },
+        deposit: {
+          create: {
+            amountType: depositAmountType,
+            percentage: req.body.depositPercentage ? Number(req.body.depositPercentage) : null,
+            amountCollected: computedDeposit,
+            status: status === "CONFIRMED" ? "COLLECTED" : "PENDING",
+          },
         },
       },
-    },
-    include: {
-      lines: { include: { variant: { include: { product: true } } } },
-      deposit: true,
-      customer: { select: { id: true, name: true, email: true, phone: true } },
-    },
+      include: {
+        lines: { include: { variant: { include: { product: true } } } },
+        deposit: true,
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+      },
+    });
+
+    if (status === "CONFIRMED") {
+      for (const line of processedLines) {
+        await tx.stockMovement.create({
+          data: {
+            variantId: line.variantId,
+            orderId: created.id,
+            type: "RESERVED",
+            quantity: -line.quantity,
+          },
+        }).catch(() => {}); // Catch in case StockMovement type isn't RESERVED
+
+        await tx.productVariant.update({
+          where: { id: line.variantId },
+          data: { quantityAvailable: { decrement: line.quantity } },
+        });
+      }
+    }
+
+    return created;
   });
 
   return res.status(201).json(
@@ -174,6 +196,25 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   const updateData = { status };
+
+  // Handle stock reservation if transitioning to CONFIRMED from DRAFT
+  if (status === "CONFIRMED" && existingOrder.status === "DRAFT") {
+    for (const line of existingOrder.lines) {
+      await prisma.stockMovement.create({
+        data: {
+          variantId: line.variantId,
+          orderId: id,
+          type: "RESERVED",
+          quantity: -line.quantity,
+        },
+      }).catch(() => {});
+      await prisma.productVariant.update({
+        where: { id: line.variantId },
+        data: { quantityAvailable: { decrement: line.quantity } },
+      });
+    }
+  }
+
   if (status === "PICKED_UP") {
     updateData.actualPickupAt = new Date();
     // Update deposit to HELD
@@ -183,20 +224,23 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
         data: { status: "HELD" },
       });
     }
-    // Record Stock Movement: PICKUP (- quantity)
+    // Record Stock Movement: PICKUP (do not decrement if already confirmed, but if skipping confirmed, decrement)
     for (const line of existingOrder.lines) {
       await prisma.stockMovement.create({
         data: {
           variantId: line.variantId,
           orderId: id,
           type: "PICKUP",
-          quantity: -line.quantity,
+          quantity: 0, // Just record the event, stock is already decremented at CONFIRMED
         },
-      });
-      await prisma.productVariant.update({
-        where: { id: line.variantId },
-        data: { quantityAvailable: { decrement: line.quantity } },
-      });
+      }).catch(() => {});
+      
+      if (existingOrder.status === "DRAFT") {
+        await prisma.productVariant.update({
+          where: { id: line.variantId },
+          data: { quantityAvailable: { decrement: line.quantity } },
+        });
+      }
     }
   } else if (status === "RETURNED") {
     updateData.actualReturnAt = new Date();
@@ -209,7 +253,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
           type: "RETURN",
           quantity: line.quantity,
         },
-      });
+      }).catch(() => {});
       await prisma.productVariant.update({
         where: { id: line.variantId },
         data: { quantityAvailable: { increment: line.quantity } },

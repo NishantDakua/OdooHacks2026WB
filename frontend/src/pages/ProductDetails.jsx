@@ -1,28 +1,48 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
+import Sidebar from "../components/layout/Sidebar";
 import ConfigureModal from "../components/ui/ConfigureModal";
+import ProductImage from "../components/ui/ProductImage";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
-import { products } from "../data/products";
 import AlertPopup from "../components/ui/AlertPopup";
 
 function ProductDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
 
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const defaultEndStr = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(defaultEndStr);
   const [quantity, setQuantity] = useState(1);
-  const [duration, setDuration] = useState("");
-  const [isWishlisted, setIsWishlisted] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
+  const [showConfigure, setShowConfigure] = useState(false);
+  const [configuration, setConfiguration] = useState(null);
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const calculateDays = (start, end) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const diff = Math.ceil((e - s) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 1;
+  };
+  const durationDays = calculateDays(startDate, endDate);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    
     const fetchProductDetails = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:5000/api/v1/products/${id}`);
+        const res = await fetch(`http://localhost:5000/api/v1/products/${id}`, {
+          signal: abortController.signal
+        });
         const json = await res.json();
         if (json.success && json.data) {
           const item = json.data;
@@ -38,10 +58,13 @@ function ProductDetails() {
             price: Number(rule.price || 500),
             image: item.images?.[0] || "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1000",
             description: item.description || "High-quality rental product available now.",
+            quantityAvailable: variant.quantityAvailable || 0,
           });
         }
       } catch (err) {
-        console.error("Failed to fetch product details:", err);
+        if (err.name !== "AbortError") {
+          console.error("Failed to fetch product details:", err);
+        }
       } finally {
         setLoading(false);
       }
@@ -50,13 +73,11 @@ function ProductDetails() {
     if (id) {
       fetchProductDetails();
     }
+    
+    return () => abortController.abort();
   }, [id]);
 
-  const [showConfigure, setShowConfigure] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const [selectedDuration, setSelectedDuration] = useState("");
-  const [configuration, setConfiguration] = useState(null);
-  const [alertMessage, setAlertMessage] = useState("");
+  const isWishlisted = product ? isInWishlist(product.id) : false;
 
   if (!product) {
     return (
@@ -82,22 +103,32 @@ function ProductDetails() {
     product.duration === "Monthly"
       ? ["1 Month", "6 Months", "1 Year"]
       : ["1 Day", "3 Days", "7 Days", "1 Month"];
-
   const handleAddToCart = () => {
-    if (!selectedDuration) {
-      setAlertMessage("Please enter a rental duration.");
-      return;
-    }
-    setCartCount((previous) => previous + quantity);
-    alert(`Added ${quantity} x ${product.name} to cart!`);
+    addToCart(product, quantity, {
+      "Rental Start": startDate,
+      "Rental End": endDate,
+      "Rental Duration": durationDays,
+    });
+    setAlertMessage(`Added ${quantity} x ${product.name} (${durationDays} Days) to cart!`);
   };
 
-  const rentNow = () => {
-    if (!duration) {
-      alert("Please select a rental duration.");
-      return;
-    }
-    navigate("/rentals");
+  const handleRentNow = () => {
+    addToCart(product, quantity, {
+      "Rental Start": startDate,
+      "Rental End": endDate,
+      "Rental Duration": durationDays,
+    });
+    navigate("/cart");
+  };
+
+  const handleConfigurationConfirm = (options) => {
+    addToCart(product, quantity, {
+      ...options,
+      "Rental Start": startDate,
+      "Rental End": endDate,
+      "Rental Duration": durationDays,
+    });
+    setAlertMessage(`Added ${quantity} x ${product.name} to cart!`);
   };
 
   return (
@@ -144,7 +175,7 @@ function ProductDetails() {
 
               <button
                 type="button"
-                onClick={() => alert(`Cart has ${cartCount} items`)}
+                onClick={() => navigate("/cart")}
                 className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-[#4f8c89] hover:text-[#4f8c89]"
               >
                 <svg
@@ -199,14 +230,15 @@ function ProductDetails() {
           <section className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
             <div className="grid h-full min-h-0 grid-cols-[47%_53%]">
               <div className="relative flex min-h-0 items-center justify-center bg-[#e9f6f5] p-5">
-                <div className="absolute left-5 top-5 z-10 rounded-full bg-white px-4 py-2 text-xs font-semibold text-green-600 shadow-sm">
-                  Available for Rent
+                <div className={`absolute left-5 top-5 z-10 rounded-full bg-white px-4 py-2 text-xs font-semibold shadow-sm ${product.quantityAvailable > 0 ? "text-green-600" : "text-red-500"}`}>
+                  {product.quantityAvailable > 0 ? "Available for Rent" : "Out of Stock"}
                 </div>
                 <div className="flex h-full min-h-0 w-full items-center justify-center overflow-hidden rounded-2xl bg-white">
-                  <img
+                  <ProductImage
                     src={product.image}
                     alt={product.name}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full"
+                    width={800}
                   />
                 </div>
               </div>
@@ -260,75 +292,86 @@ function ProductDetails() {
                   </div>
                 </div>
 
-                <div className="mt-3 shrink-0">
-                  <label className="mb-1.5 block text-sm font-semibold">
-                    Rental Duration
-                  </label>
-                  <select
-                    value={duration}
-                    onChange={(event) => setDuration(event.target.value)}
-                    className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
-                  >
-                    <option value="">Select rental duration</option>
-                    {durationOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                <div className="mt-3 shrink-0 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Rental Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={todayStr}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-xs outline-none transition focus:border-[#4f8c89] focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Rental End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      min={startDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-xs outline-none transition focus:border-[#4f8c89] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="col-span-2 flex items-center justify-between rounded-xl bg-[#e9f6f5] px-3 py-1.5 text-xs">
+                    <span className="font-semibold text-[#4f8c89]">Duration: {durationDays} Day(s)</span>
+                    <span className="text-gray-500">Deposit: ₹1,500 (Refundable)</span>
+                  </div>
                 </div>
 
-              </div>
-
-              {/* Duration */}
-              <div className="mt-4">
-
-                <label className="mb-2 block text-sm font-semibold">
-                  Rental Duration
-                </label>
-
-                <input
-                  type="number"
-                  min="1"
-                  value={selectedDuration}
-                  onChange={(event) =>
-                    setSelectedDuration(event.target.value)
-                  }
-                  className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
-                  placeholder={`Number of ${product.duration === "Monthly" ? "Months" : "Days"}`}
-                />
-
-              </div>
-
-              {/* Quantity */}
-              <div className="mt-3">
-
-                <label className="mb-2 block text-sm font-semibold">
-                  Quantity
-                </label>
-
-                <div className="flex h-11 w-fit overflow-hidden rounded-xl border border-gray-200">
+                <div className="mt-3 shrink-0">
+                  <label className="mb-1.5 block text-sm font-semibold">
+                    Quantity
+                  </label>
+                  <div className="flex h-11 w-fit overflow-hidden rounded-xl border border-gray-200">
+                    <button
+                      type="button"
+                      disabled={product.quantityAvailable === 0}
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="flex w-11 items-center justify-center bg-gray-50 text-gray-500 transition hover:bg-gray-100 hover:text-black disabled:opacity-50"
+                    >
+                      -
+                    </button>
+                    <div className="flex w-12 items-center justify-center border-x border-gray-200 text-sm font-semibold">
+                      {product.quantityAvailable === 0 ? 0 : quantity}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={product.quantityAvailable === 0 || quantity >= product.quantityAvailable}
+                      onClick={() => setQuantity(Math.min(product.quantityAvailable, quantity + 1))}
+                      className="flex w-11 items-center justify-center bg-gray-50 text-gray-500 transition hover:bg-gray-100 hover:text-black disabled:opacity-50"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
 
                 <div className="mt-auto flex shrink-0 gap-3 pt-4">
                   <button
                     type="button"
-                    onClick={addToCart}
-                    className="flex-1 rounded-xl bg-[#4f8c89] py-3 text-sm font-semibold text-white transition hover:bg-[#376c69] active:scale-[0.98]"
+                    onClick={handleAddToCart}
+                    disabled={product.quantityAvailable === 0}
+                    className="flex-1 rounded-xl bg-[#4f8c89] py-3 text-sm font-semibold text-white transition hover:bg-[#376c69] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Add to Cart
                   </button>
                   <button
                     type="button"
-                    onClick={rentNow}
-                    className="flex-1 rounded-xl border border-[#4f8c89] bg-white py-3 text-sm font-semibold text-[#4f8c89] transition hover:bg-[#e9f6f5] active:scale-[0.98]"
+                    onClick={handleRentNow}
+                    disabled={product.quantityAvailable === 0}
+                    className="flex-1 rounded-xl border border-[#4f8c89] bg-white py-3 text-sm font-semibold text-[#4f8c89] transition hover:bg-[#e9f6f5] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Rent Now
                   </button>
                 </div>
               </div>
             </div>
-
-          </div>
 
         </section>
 
@@ -339,7 +382,7 @@ function ProductDetails() {
         isOpen={showConfigure}
         onClose={() => setShowConfigure(false)}
         product={product}
-        onConfirm={handleConfiguration}
+        onConfirm={handleConfigurationConfirm}
       />
 
       <AlertPopup 
@@ -348,7 +391,8 @@ function ProductDetails() {
         onClose={() => setAlertMessage("")} 
       />
 
-    </AppLayout>
+      </main>
+    </div>
   );
 }
 
