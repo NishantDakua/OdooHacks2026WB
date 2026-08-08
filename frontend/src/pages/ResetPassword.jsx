@@ -5,17 +5,40 @@ function ResetPassword() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = () => {
-    if (!email.trim()) {
-      setError("Please enter your email ID.");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || !newPassword.trim()) {
+      setError("Please enter your email and new password.");
       return;
     }
 
     setError("");
-    setSubmitted(true);
+    setLoading(true);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/v1/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, newPassword }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to reset password");
+      }
+
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBackToLogin = () => {
@@ -24,7 +47,6 @@ function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-[#a8dada] text-black flex items-center justify-center px-4">
-
       <div className="w-full max-w-md">
 
         {/* Logo */}
@@ -40,49 +62,65 @@ function ResetPassword() {
           {!submitted ? (
             <>
               {/* Heading */}
-              <div className="mb-6">
+              <div className="mb-5">
                 <h1 className="text-3xl font-semibold tracking-tight text-black">
                   Reset Password
                 </h1>
 
                 <p className="mt-2 text-sm text-gray-600">
-                  Enter your email to receive a password reset link.
+                  Enter your email and new password.
                 </p>
-              </div>
-
-              {/* Email */}
-              <div className="mb-2">
-                <label className="mb-1 block text-sm font-medium text-black">
-                  Email ID
-                </label>
-
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="Enter your email"
-                  className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
-                />
               </div>
 
               {/* Error */}
               {error && (
-                <p className="mb-4 text-sm text-red-600">
+                <div className="mb-4 rounded-xl border border-red-500 bg-red-50 p-3 text-xs text-red-700">
                   {error}
-                </p>
+                </div>
               )}
 
-              {/* Reset Button */}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                className="w-full rounded-xl bg-black py-3 text-sm font-semibold text-white transition hover:bg-gray-800 active:scale-[0.98]"
-              >
-                Reset Password
-              </button>
+              <form onSubmit={handleSubmit}>
+                {/* Email */}
+                <div className="mb-3">
+                  <label className="mb-1 block text-sm font-medium text-black">
+                    Email ID
+                  </label>
+
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
+                  />
+                </div>
+
+                {/* New Password */}
+                <div className="mb-5">
+                  <label className="mb-1 block text-sm font-medium text-black">
+                    New Password
+                  </label>
+
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
+                  />
+                </div>
+
+                {/* Reset Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-black py-3 text-sm font-semibold text-white transition hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {loading ? "Resetting..." : "Reset Password"}
+                </button>
+              </form>
 
               {/* Back to Login */}
               <div className="mt-5 text-center">
@@ -109,12 +147,11 @@ function ResetPassword() {
               {/* Success Message */}
               <div className="text-center">
                 <h1 className="text-3xl font-semibold tracking-tight text-black">
-                  Check your email
+                  Password Updated
                 </h1>
 
                 <p className="mt-3 text-sm leading-6 text-gray-600">
-                  If an account exists for this email, a password reset link
-                  has been sent to you.
+                  Your password has been reset successfully. You can now login with your new password.
                 </p>
               </div>
 

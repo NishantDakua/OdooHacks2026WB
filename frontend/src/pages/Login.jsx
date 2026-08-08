@@ -1,8 +1,44 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
 
 function Login() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Invalid email or password");
+      }
+
+      // Save token and user in localStorage
+      localStorage.setItem("token", result.data.token);
+      localStorage.setItem("user", JSON.stringify(result.data.user));
+
+      alert("Login successful!");
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#a8dada] text-black flex items-center justify-center px-4">
@@ -19,7 +55,7 @@ function Login() {
         <div className="rounded-2xl border border-black bg-white p-8 shadow-2xl shadow-black/10">
 
           {/* Heading */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-3xl font-semibold tracking-tight text-black">
               Welcome back
             </h1>
@@ -29,35 +65,53 @@ function Login() {
             </p>
           </div>
 
-          {/* Login ID */}
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-black">
-              Login ID
-            </label>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-500 bg-red-50 p-3 text-xs text-red-700">
+              {error}
+            </div>
+          )}
 
-            <input
-              type="text"
-              placeholder="Enter your login ID"
-              className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
-            />
-          </div>
+          <form onSubmit={handleSubmit}>
+            {/* Email / Login ID */}
+            <div className="mb-5">
+              <label className="mb-2 block text-sm font-medium text-black">
+                Email / Login ID
+              </label>
 
-          {/* Password */}
-          <div className="mb-6">
-            <label className="mb-2 block text-sm font-medium text-black">
-              Password
-            </label>
+              <input
+                type="text"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email or login ID"
+                className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
+              />
+            </div>
 
-            <PasswordInput placeholder="Enter your password" />
-          </div>
+            {/* Password */}
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-medium text-black">
+                Password
+              </label>
 
-          {/* Login Button */}
-          <button
-            type="button"
-            className="w-full rounded-xl bg-black py-3 text-sm font-semibold text-white transition hover:bg-gray-800 active:scale-[0.98]"
-          >
-            Log In
-          </button>
+              <PasswordInput
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+
+            {/* Login Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-black py-3 text-sm font-semibold text-white transition hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50"
+            >
+              {loading ? "Logging in..." : "Log In"}
+            </button>
+          </form>
 
           {/* Forgot Password */}
           <div className="mt-5 text-center">
@@ -73,7 +127,6 @@ function Login() {
           {/* Register */}
           <p className="mt-6 text-center text-sm text-gray-600">
             Don't have an account?{" "}
-
             <button
               type="button"
               onClick={() => navigate("/signup")}

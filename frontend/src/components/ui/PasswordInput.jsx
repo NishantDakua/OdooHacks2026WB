@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function PasswordInput({ placeholder = "Password" }) {
+function PasswordInput({ placeholder = "Password", ...props }) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -9,6 +9,7 @@ function PasswordInput({ placeholder = "Password" }) {
         type={showPassword ? "text" : "password"}
         placeholder={placeholder}
         className="w-full rounded-xl border border-black bg-white px-3 py-2.5 pr-11 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
+        {...props}
       />
 
       <button
@@ -18,7 +19,6 @@ function PasswordInput({ placeholder = "Password" }) {
         aria-label={showPassword ? "Hide password" : "Show password"}
       >
         {showPassword ? (
-          /* Eye Off */
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -32,19 +32,16 @@ function PasswordInput({ placeholder = "Password" }) {
               strokeLinejoin="round"
               d="M3 3l18 18"
             />
-
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M10.58 10.58a2 2 0 102.83 2.83"
             />
-
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M9.88 4.24A10.94 10.94 0 0112 4c5 0 8.5 4 9.5 6a11.8 11.8 0 01-4.06 4.64"
             />
-
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -52,7 +49,6 @@ function PasswordInput({ placeholder = "Password" }) {
             />
           </svg>
         ) : (
-          /* Eye */
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -66,7 +62,6 @@ function PasswordInput({ placeholder = "Password" }) {
               strokeLinejoin="round"
               d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"
             />
-
             <circle
               cx="12"
               cy="12"
