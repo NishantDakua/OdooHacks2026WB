@@ -14,20 +14,15 @@ function Sidebar({ wishlistCount = 0 }) {
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("user");
-
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-
         setUser({
           name:
             parsedUser.name ||
             parsedUser.firstName ||
             parsedUser.fullName ||
             "Customer",
-
-          role:
-            parsedUser.role ||
-            "Customer",
+          role: parsedUser.role || "Customer",
         });
       }
     } catch (error) {
@@ -35,20 +30,17 @@ function Sidebar({ wishlistCount = 0 }) {
     }
   }, []);
 
-  const firstLetter = user.name
-    ? user.name.charAt(0).toUpperCase()
-    : "C";
+  const firstLetter = user.name ? user.name.charAt(0).toUpperCase() : "C";
   const effectiveWishlistCount = sharedWishlistCount ?? wishlistCount;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-[220px] flex-col border-r border-gray-200 bg-white">
-
       {/* Logo */}
       <div className="flex h-[85px] items-center border-b border-gray-200 px-6">
         <button
@@ -63,7 +55,6 @@ function Sidebar({ wishlistCount = 0 }) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-5">
-
         <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
           Browse
         </p>
@@ -87,7 +78,6 @@ function Sidebar({ wishlistCount = 0 }) {
             <rect x="4" y="14" width="6" height="6" rx="1" />
             <rect x="14" y="14" width="6" height="6" rx="1" />
           </svg>
-
           Products
         </button>
 
@@ -111,7 +101,6 @@ function Sidebar({ wishlistCount = 0 }) {
               d="M8 7V4m8 3V4M4.5 10.5h15M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2Z"
             />
           </svg>
-
           My Rentals
         </button>
 
@@ -122,7 +111,6 @@ function Sidebar({ wishlistCount = 0 }) {
           className="mb-1 flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm text-gray-600 transition hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
         >
           <span className="flex items-center gap-3">
-
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -137,7 +125,6 @@ function Sidebar({ wishlistCount = 0 }) {
                 d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78Z"
               />
             </svg>
-
             Wishlist
           </span>
 
@@ -154,7 +141,6 @@ function Sidebar({ wishlistCount = 0 }) {
           Information
         </p>
 
-        {/* About */}
         <button
           type="button"
           onClick={() => navigate("/about")}
@@ -163,7 +149,6 @@ function Sidebar({ wishlistCount = 0 }) {
           About Us
         </button>
 
-        {/* Terms */}
         <button
           type="button"
           onClick={() => navigate("/terms")}
@@ -172,7 +157,6 @@ function Sidebar({ wishlistCount = 0 }) {
           Terms & Conditions
         </button>
 
-        {/* Contact */}
         <button
           type="button"
           onClick={() => navigate("/contact")}
@@ -180,61 +164,49 @@ function Sidebar({ wishlistCount = 0 }) {
         >
           Contact Us
         </button>
-
       </nav>
 
-      {/* User Profile */}
+      {/* User Profile & Logout */}
       <div className="border-t border-gray-200 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4f8c89] text-sm font-semibold text-white">
+              {firstLetter}
+            </div>
 
-        <button
-          type="button"
-          onClick={() => navigate("/profile")}
-          className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition hover:bg-[#e9f6f5]"
-        >
-
-          {/* Avatar */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4f8c89] text-sm font-semibold text-white">
-            {firstLetter}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-black">
+                {user.name}
+              </p>
+              <p className="text-xs text-gray-500">
+                {user.role}
+              </p>
+            </div>
           </div>
 
-          {/* User information */}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-black">
-              {user.name}
-            </p>
-
-            <p className="text-xs text-gray-500">
-              {user.role}
-            </p>
-          </div>
-
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="1.8"
-            stroke="currentColor"
-            className="ml-auto h-4 w-4 text-gray-400"
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Log Out"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="m9 18 6-6-6-6"
-            />
-          </svg>
-
-        </button>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="mt-3 flex w-full items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-        >
-          Logout
-        </button>
-
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.8"
+              stroke="currentColor"
+              className="h-5 w-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H9"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
-
     </aside>
   );
 }
