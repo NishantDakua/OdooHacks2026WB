@@ -1,15 +1,18 @@
-
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
 
 function Login() {
+  const navigate = useNavigate();
+
   return (
-    <div className="min-h-screen bg-[#A7DBD8] px-4 text-black flex items-center justify-center">
+    <div className="min-h-screen bg-[#a8dada] text-black flex items-center justify-center px-4">
       <div className="w-full max-w-md">
 
         {/* Logo */}
-        <div className="flex justify-center mb-8">
-        <header className="text-4xl font-bold text-black ">RentEase</header>
+        <div className="flex justify-center mb-6">
+          <header className="text-4xl font-bold text-black">
+            RentEase
+          </header>
         </div>
 
         {/* Login Card */}
@@ -45,7 +48,7 @@ function Login() {
               Password
             </label>
 
-           <PasswordInput placeholder="Enter your password" />
+            <PasswordInput placeholder="Enter your password" />
           </div>
 
           {/* Login Button */}
@@ -60,6 +63,7 @@ function Login() {
           <div className="mt-5 text-center">
             <button
               type="button"
+              onClick={() => navigate("/reset-password")}
               className="text-sm text-gray-600 transition hover:text-black"
             >
               Forgot Password?
@@ -69,8 +73,10 @@ function Login() {
           {/* Register */}
           <p className="mt-6 text-center text-sm text-gray-600">
             Don't have an account?{" "}
+
             <button
               type="button"
+              onClick={() => navigate("/signup")}
               className="font-medium text-black underline-offset-4 hover:underline"
             >
               Register Here
@@ -78,6 +84,7 @@ function Login() {
           </p>
 
         </div>
+
       </div>
     </div>
   );
