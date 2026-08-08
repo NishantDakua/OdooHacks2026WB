@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
+import Sidebar from "../components/layout/Sidebar";
 import ConfigureModal from "../components/ui/ConfigureModal";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
-import { products } from "../data/products";
-
 function Home() {
   const navigate = useNavigate();
+  const { addToCart, cartCount } = useCart();
+  const { wishlistItems, toggleWishlist: toggleWishlistCtx } = useWishlist();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef(null);
 
   const [brand, setBrand] = useState("");
   const [color, setColor] = useState("");
@@ -22,8 +25,17 @@ function Home() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("relevance");
 
-  const [wishlist, setWishlist] = useState([]);
-  const [cartCount, setCartCount] = useState(0);
+  const wishlist = useMemo(
+    () => wishlistItems.map((item) => item.id),
+    [wishlistItems]
+  );
+
+  const toggleWishlist = (productId) => {
+    const targetProduct = products.find((item) => item.id === productId);
+    if (targetProduct) {
+      toggleWishlistCtx(targetProduct);
+    }
+  };
 
   // Fetch dynamic products directly from database API
   useEffect(() => {
@@ -55,6 +67,9 @@ function Home() {
         setLoading(false);
       }
     };
+
+    fetchProducts();
+  }, []);
 
   /* ================= CONFIGURE MODAL ================= */
 
@@ -462,7 +477,7 @@ function Home() {
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            addToCart(product);
+                            handleAddToCart(product);
                           }}
                           className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#4f8c89] active:scale-[0.97]"
                         >
@@ -490,7 +505,6 @@ function Home() {
             </div>
           )}
         </div>
-      )}
 
       {/* Configure Modal */}
       <ConfigureModal
@@ -499,7 +513,8 @@ function Home() {
         onConfirm={handleConfigurationConfirm}
         product={configuringProduct}
       />
-    </AppLayout>
+      </main>
+    </div>
   );
 }
 
