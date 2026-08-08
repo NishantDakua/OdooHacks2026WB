@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
 import Sidebar from "../components/layout/Sidebar";
 import ConfigureModal from "../components/ui/ConfigureModal";
+import AlertPopup from "../components/ui/AlertPopup";
+import ProductImage from "../components/ui/ProductImage";
+import ProductCardSkeleton from "../components/ui/ProductCardSkeleton";
+import ProductCard from "../components/ui/ProductCard";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
@@ -14,8 +18,7 @@ function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [toastMessage, setToastMessage] = useState("");
-  const toastTimerRef = useRef(null);
+  const [alertState, setAlertState] = useState({ show: false, message: "" });
 
   const [brand, setBrand] = useState("");
   const [color, setColor] = useState("");
@@ -23,26 +26,30 @@ function Home() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState("relevance");
 
-  const wishlist = useMemo(
-    () => wishlistItems.map((item) => item.id),
-    [wishlistItems]
-  );
+  const { toggleWishlist, wishlistCount, isInWishlist } = useWishlist();
+  const { addToCart, cartCount } = useCart();
 
-  const toggleWishlist = (productId) => {
-    const targetProduct = products.find((item) => item.id === productId);
-    if (targetProduct) {
-      toggleWishlistCtx(targetProduct);
-    }
-  };
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Fetch dynamic products directly from database API
   useEffect(() => {
+    const abortController = new AbortController();
+    
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://localhost:5000/api/v1/products");
+        const res = await fetch("http://localhost:5000/api/v1/products", {
+          signal: abortController.signal
+        });
         const json = await res.json();
         if (json.success && json.data) {
           const formatted = json.data.map((item) => {
@@ -57,16 +64,24 @@ function Home() {
               duration: rule.durationUnit === "MONTHLY" ? "Monthly" : "Daily",
               price: Number(rule.price || 500),
               image: item.images?.[0] || "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800",
+              quantityAvailable: variant.quantityAvailable || 0,
             };
           });
           setProducts(formatted);
         }
       } catch (err) {
-        setError("Unable to load dynamic products from database.");
+        if (err.name !== "AbortError") {
+          setError("Unable to load dynamic products from database.");
+        }
       } finally {
         setLoading(false);
       }
     };
+    
+    fetchProducts();
+    
+    return () => abortController.abort();
+  }, []);
 
     fetchProducts();
   }, []);
@@ -82,8 +97,8 @@ function Home() {
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    if (search.trim()) {
-      const query = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         (product) =>
           product.name.toLowerCase().includes(query) ||
@@ -121,7 +136,7 @@ function Home() {
     }
 
     return result;
-  }, [products, search, brand, color, duration, minPrice, maxPrice, sortBy]);
+  }, [products, debouncedSearch, brand, color, duration, minPrice, maxPrice, sortBy]);
 
   const clearFilters = () => {
     setBrand("");
@@ -133,45 +148,16 @@ function Home() {
     setSortBy("relevance");
   };
 
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-      }
-    };
+  const handleNavigate = useCallback((id) => navigate(`/product/${id}`), [navigate]);
+  const handleToggleWishlist = useCallback((product) => toggleWishlist(product), [toggleWishlist]);
+  const handleAddToCart = useCallback((product) => {
+    setConfiguringProduct(product);
   }, []);
-
-  const handleAddToCart = (product) => {
-    if (product.options && product.options.length > 0) {
-      setConfiguringProduct(product);
-      return;
-    }
-
-    addToCart(product, 1, {});
-
-    setToastMessage(`${product.name} added to cart`);
-
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-
-    toastTimerRef.current = setTimeout(() => {
-      setToastMessage("");
-    }, 1800);
-  };
 
   const handleConfigurationConfirm = (options) => {
     if (configuringProduct) {
       addToCart(configuringProduct, 1, options);
-      setToastMessage(`${configuringProduct.name} added to cart`);
-
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-      }
-
-      toastTimerRef.current = setTimeout(() => {
-        setToastMessage("");
-      }, 1800);
+      setAlertState({ show: true, message: `${configuringProduct.name} added to cart` });
     }
   };
 
@@ -184,7 +170,7 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-[#f5fbfb] text-black">
-      <Sidebar wishlistCount={wishlist.length} />
+      <Sidebar wishlistCount={wishlistCount} />
 
       <main className="ml-[220px] min-h-screen">
         <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur">
@@ -227,13 +213,7 @@ function Home() {
 
               <button
                 type="button"
-                onClick={() =>
-                  alert(
-                    wishlist.length
-                      ? `${wishlist.length} item(s) in wishlist.`
-                      : "Your wishlist is empty."
-                  )
-                }
+                onClick={() => navigate("/wishlist")}
                 className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-[#4f8c89] hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
               >
                 <svg
@@ -254,13 +234,7 @@ function Home() {
 
               <button
                 type="button"
-                onClick={() =>
-                  alert(
-                    cartCount
-                      ? `${cartCount} item(s) in cart.`
-                      : "Your cart is empty."
-                  )
-                }
+                onClick={() => navigate("/cart")}
                 className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-[#4f8c89] hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
               >
                 <svg
@@ -404,90 +378,23 @@ function Home() {
           </div>
 
           {loading ? (
-            <div className="rounded-2xl border border-gray-200 bg-white py-20 text-center">
-              <p className="text-sm text-gray-500">Loading products from database...</p>
-            </div>
+            <section className="grid grid-cols-2 gap-5 xl:grid-cols-4">
+              {[...Array(8)].map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))}
+            </section>
           ) : filteredProducts.length > 0 ? (
             <section className="grid grid-cols-2 gap-5 xl:grid-cols-4">
-              {filteredProducts.map((product) => {
-                const isWishlisted = wishlist.includes(product.id);
-                return (
-                  <article
-                    key={product.id}
-                    onClick={() => navigate(`/product/${product.id}`)}
-                    className="group cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white transition duration-200 hover:-translate-y-1 hover:border-[#4f8c89]/40 hover:shadow-xl"
-                  >
-                    <div className="relative aspect-[1.15/1] overflow-hidden bg-[#f1f8f8]">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                      />
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleWishlist(product.id);
-                        }}
-                        className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur transition ${
-                          isWishlisted
-                            ? "text-[#4f8c89]"
-                            : "text-gray-600 hover:text-[#4f8c89]"
-                        }`}
-                        aria-label="Add to wishlist"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill={isWishlisted ? "currentColor" : "none"}
-                          viewBox="0 0 24 24"
-                          strokeWidth="1.8"
-                          stroke="currentColor"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78Z"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-md bg-[#e9f6f5] px-2 py-1 text-[11px] font-semibold text-[#4f8c89]">
-                          {product.category}
-                        </span>
-                        <span className="text-xs text-green-600">Available</span>
-                      </div>
-
-                      <h3 className="truncate text-base font-semibold">
-                        {product.name}
-                      </h3>
-
-                      <div className="mt-4 flex items-center justify-between">
-                        <div>
-                          <span className="text-lg font-bold">₹{product.price}</span>
-                          <span className="ml-1 text-xs text-gray-500">
-                            / {product.duration === "Monthly" ? "month" : "day"}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleAddToCart(product);
-                          }}
-                          className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#4f8c89] active:scale-[0.97]"
-                        >
-                          Add to Cart
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  isWishlisted={isInWishlist(product.id)}
+                  onNavigate={handleNavigate}
+                  onToggleWishlist={handleToggleWishlist}
+                  onAddToCart={handleAddToCart}
+                />
+              ))}
             </section>
           ) : (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-20 text-center">
@@ -512,6 +419,12 @@ function Home() {
         onClose={() => setConfiguringProduct(null)}
         onConfirm={handleConfigurationConfirm}
         product={configuringProduct}
+      />
+
+      <AlertPopup 
+        isOpen={alertState.show} 
+        message={alertState.message} 
+        onClose={() => setAlertState({ show: false, message: "" })} 
       />
       </main>
     </div>

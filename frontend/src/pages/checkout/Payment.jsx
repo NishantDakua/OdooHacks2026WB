@@ -22,43 +22,114 @@ function Payment() {
     }
   }, [cart, checkoutData, navigate]);
 
-  const handlePayNow = () => {
-    // Basic validation
+  const handlePayNow = async () => {
     if (!cardName || !cardNumber || !expiry || !cvv) {
       setAlertMessage("Please fill in all card details.");
       return;
     }
 
-    // Demo Order Creation
-    const newOrder = {
-      id: Date.now().toString(),
-      orderNumber: `RENT-${Math.floor(100000 + Math.random() * 900000)}`,
-      userId: "demo-user-1", // In real app, from AuthContext
-      items: cart,
-      deliveryMethod: checkoutData.deliveryMethod,
-      deliveryAddress: checkoutData.deliveryAddress,
-      billingAddress: checkoutData.billingAddress,
-      subtotal: checkoutData.cartTotal, // wait, we don't have cartTotal in checkoutData. We can get it from context. Let's just store totals in the order.
-      discountAmount: checkoutData.discountAmount,
-      total: finalTotal, // using context finalTotal
-      paymentStatus: "Paid",
-      orderStatus: "Confirmed",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const token = localStorage.getItem("token");
+      let storedUser = {};
+      try {
+        storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      } catch {}
 
-    // Store order in localStorage for My Rentals
-    const existingOrders = JSON.parse(localStorage.getItem("rentals") || "[]");
-    localStorage.setItem("rentals", JSON.stringify([newOrder, ...existingOrders]));
+      const rentalStart = new Date();
+      const rentalEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
-    // Store the latest order to show on success page
-    localStorage.setItem("latestOrder", JSON.stringify(newOrder));
+      const lines = cart.map((item) => ({
+        variantId: item.product.variants?.[0]?.id || item.product.id,
+        quantity: Number(item.quantity || 1),
+        unitPrice: Number(item.product.price || item.product.rentalPrice || 500),
+      }));
 
-    // Clear checkout session
-    setCheckoutData(null);
-    clearCart();
+      // Post rental order to PostgreSQL database
+      const res = await fetch("http://localhost:5000/api/v1/rentals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          customerId: storedUser.id || null,
+          pickupType: checkoutData.deliveryMethod === "Delivery" ? "DELIVERY" : "STORE_PICKUP",
+          rentalStart: rentalStart.toISOString(),
+          rentalEnd: rentalEnd.toISOString(),
+          status: "CONFIRMED",
+          depositAmount: 2000,
+          depositAmountType: "FIXED",
+          lines,
+        }),
+      });
 
-    // Navigate to success
-    navigate("/checkout/success");
+      const json = await res.json();
+      let createdOrder = json.data;
+
+      if (!createdOrder) {
+        createdOrder = {
+          id: Date.now().toString(),
+          orderNumber: `R${Math.floor(10000 + Math.random() * 90000)}`,
+          status: "CONFIRMED",
+          total: finalTotal,
+        };
+      }
+
+      // Record invoice and payment
+      if (createdOrder?.id) {
+        try {
+          await fetch("http://localhost:5000/api/v1/invoices", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              orderId: createdOrder.id,
+              type: "RENTAL",
+              amount: createdOrder.subtotal || finalTotal,
+              taxAmount: createdOrder.taxTotal || (finalTotal * 0.18),
+            }),
+          });
+
+          await fetch("http://localhost:5000/api/v1/invoices/payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              orderId: createdOrder.id,
+              method: "CARD",
+              amount: createdOrder.total || finalTotal,
+            }),
+          });
+        } catch (e) {
+          console.warn("Invoice/payment auto-record error", e);
+        }
+      }
+
+      const formattedOrder = {
+        ...createdOrder,
+        orderNumber: createdOrder.orderNumber || `#R${createdOrder.id?.slice(-4) || "0001"}`,
+        items: cart,
+        deliveryMethod: checkoutData.deliveryMethod,
+        deliveryAddress: checkoutData.deliveryAddress,
+        billingAddress: checkoutData.billingAddress,
+        total: finalTotal,
+        createdAt: new Date().toISOString(),
+      };
+
+      const existingOrders = JSON.parse(localStorage.getItem("rentals") || "[]");
+      localStorage.setItem("rentals", JSON.stringify([formattedOrder, ...existingOrders]));
+      localStorage.setItem("latestOrder", JSON.stringify(formattedOrder));
+
+      setCheckoutData(null);
+      clearCart();
+      navigate("/checkout/success");
+    } catch (err) {
+      setAlertMessage("Payment processing failed. Please try again.");
+    }
   };
 
   if (cart.length === 0 || !checkoutData) return null;
