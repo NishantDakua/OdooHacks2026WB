@@ -2,8 +2,8 @@ import prisma from "../db/prisma.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
-// List all categories
 const getCategories = asyncHandler(async (req, res) => {
   const categories = await prisma.category.findMany({
     include: { _count: { select: { products: true } } },
@@ -15,7 +15,6 @@ const getCategories = asyncHandler(async (req, res) => {
   );
 });
 
-// Create new category
 const createCategory = asyncHandler(async (req, res) => {
   const { name } = req.body;
   if (!name) {
@@ -31,7 +30,6 @@ const createCategory = asyncHandler(async (req, res) => {
   );
 });
 
-// List products with category, variants, and price rules
 const getProducts = asyncHandler(async (req, res) => {
   const { categoryId, search, isRentable } = req.query;
 
@@ -61,7 +59,6 @@ const getProducts = asyncHandler(async (req, res) => {
   );
 });
 
-// Get single product details
 const getProductById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -88,7 +85,22 @@ const getProductById = asyncHandler(async (req, res) => {
   );
 });
 
-// Create product with variants
+const uploadProductImage = asyncHandler(async (req, res) => {
+  const localFilePath = req.file?.path;
+  if (!localFilePath) {
+    throw new ApiError(400, "Image file is required");
+  }
+
+  const cloudinaryResponse = await uploadOnCloudinary(localFilePath);
+  if (!cloudinaryResponse) {
+    throw new ApiError(500, "Failed to upload image to Cloudinary");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, { url: cloudinaryResponse.secure_url }, "Image uploaded to Cloudinary successfully")
+  );
+});
+
 const createProduct = asyncHandler(async (req, res) => {
   const { name, description, categoryId, images = [], variants = [] } = req.body;
 
@@ -125,7 +137,6 @@ const createProduct = asyncHandler(async (req, res) => {
   );
 });
 
-// Update product
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, description, categoryId, isRentable, images } = req.body;
@@ -147,7 +158,6 @@ const updateProduct = asyncHandler(async (req, res) => {
   );
 });
 
-// Delete product
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -163,6 +173,7 @@ export {
   createCategory,
   getProducts,
   getProductById,
+  uploadProductImage,
   createProduct,
   updateProduct,
   deleteProduct,
