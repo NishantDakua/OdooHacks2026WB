@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
+import AlertPopup from "../components/ui/AlertPopup";
 
 function Login() {
   const navigate = useNavigate();
@@ -8,6 +9,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [alertState, setAlertState] = useState({ show: false, message: "", onConfirm: null });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,8 +33,11 @@ function Login() {
       localStorage.setItem("token", result.data.token);
       localStorage.setItem("user", JSON.stringify(result.data.user));
 
-      alert("Login successful!");
-      navigate("/home");
+      setAlertState({
+        show: true,
+        message: "Login successful!",
+        onConfirm: () => navigate("/home")
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -137,8 +142,16 @@ function Login() {
           </p>
 
         </div>
-
       </div>
+
+      <AlertPopup 
+        isOpen={alertState.show} 
+        message={alertState.message} 
+        onClose={() => {
+          if (alertState.onConfirm) alertState.onConfirm();
+          setAlertState({ show: false, message: "", onConfirm: null });
+        }} 
+      />
     </div>
   );
 }

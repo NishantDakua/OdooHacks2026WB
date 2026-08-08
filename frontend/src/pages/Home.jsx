@@ -1,99 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
+import ConfigureModal from "../components/ui/ConfigureModal";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
-const products = [
-  {
-    id: 1,
-    name: "Premium Sofa",
-    category: "Furniture",
-    brand: "Ikea",
-    color: "Gray",
-    duration: "Monthly",
-    price: 850,
-    image:
-      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800",
-  },
-  {
-    id: 2,
-    name: "Gaming Laptop",
-    category: "Electronics",
-    brand: "Dell",
-    color: "Black",
-    duration: "Daily",
-    price: 500,
-    image:
-      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800",
-  },
-  {
-    id: 3,
-    name: "Smart TV",
-    category: "Electronics",
-    brand: "Samsung",
-    color: "Black",
-    duration: "Daily",
-    price: 650,
-    image:
-      "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=800",
-  },
-  {
-    id: 4,
-    name: "Professional Camera",
-    category: "Electronics",
-    brand: "Sony",
-    color: "Black",
-    duration: "Daily",
-    price: 900,
-    image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800",
-  },
-  {
-    id: 5,
-    name: "MacBook Pro",
-    category: "Electronics",
-    brand: "Apple",
-    color: "Gray",
-    duration: "Daily",
-    price: 750,
-    image:
-      "https://images.unsplash.com/photo-1517336714739-489689fd1ca8?w=800",
-  },
-  {
-    id: 6,
-    name: "PlayStation 5",
-    category: "Gaming",
-    brand: "Sony",
-    color: "White",
-    duration: "Daily",
-    price: 450,
-    image:
-      "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=800",
-  },
-  {
-    id: 7,
-    name: "King Size Bed",
-    category: "Furniture",
-    brand: "Ikea",
-    color: "White",
-    duration: "Monthly",
-    price: 1200,
-    image:
-      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800",
-  },
-  {
-    id: 8,
-    name: "Studio Speakers",
-    category: "Audio",
-    brand: "Sony",
-    color: "Black",
-    duration: "Daily",
-    price: 350,
-    image:
-      "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800",
-  },
-];
+import { products } from "../data/products";
 
 function Home() {
   const navigate = useNavigate();
@@ -120,6 +32,10 @@ function Home() {
   /* ================= TOAST ================= */
 
   const [toastMessage, setToastMessage] = useState("");
+
+  /* ================= CONFIGURE MODAL ================= */
+
+  const [configuringProduct, setConfiguringProduct] = useState(null);
 
   /* =========================================================
      FILTER + SEARCH + SORT
@@ -216,6 +132,11 @@ function Home() {
   }, []);
 
   const handleAddToCart = (product) => {
+    if (product.options && product.options.length > 0) {
+      setConfiguringProduct(product);
+      return;
+    }
+
     addToCart(product, 1, {});
 
     setToastMessage(`${product.name} added to cart`);
@@ -227,6 +148,21 @@ function Home() {
     toastTimerRef.current = setTimeout(() => {
       setToastMessage("");
     }, 1800);
+  };
+
+  const handleConfigurationConfirm = (options) => {
+    if (configuringProduct) {
+      addToCart(configuringProduct, 1, options);
+      setToastMessage(`${configuringProduct.name} added to cart`);
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+
+      toastTimerRef.current = setTimeout(() => {
+        setToastMessage("");
+      }, 1800);
+    }
   };
 
   /* =========================================================
@@ -637,6 +573,14 @@ function Home() {
           {toastMessage}
         </div>
       )}
+
+      {/* Configure Modal */}
+      <ConfigureModal
+        isOpen={Boolean(configuringProduct)}
+        onClose={() => setConfiguringProduct(null)}
+        onConfirm={handleConfigurationConfirm}
+        product={configuringProduct}
+      />
     </AppLayout>
   );
 }

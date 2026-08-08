@@ -5,28 +5,27 @@ import Modal from "../components/ui/Modal";
 import { useCart } from "../context/CartContext";
 
 function Cart() {
+  // Force HMR
   const navigate = useNavigate();
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [couponInput, setCouponInput] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState("");
   const [couponError, setCouponError] = useState("");
 
   const {
     cart,
     cartCount,
-    cartTotal,
     removeFromCart,
     updateQuantity,
     clearCart,
+    appliedCoupon,
+    applyCoupon,
+    removeCoupon,
+    discountAmount,
+    finalTotal,
+    cartTotal,
   } = useCart();
 
-  const subtotal = cartTotal;
-  const isCouponApplied = appliedCoupon === "RENTEASE10";
-  const discountAmount = useMemo(
-    () => (isCouponApplied ? Math.round(subtotal * 0.1) : 0),
-    [isCouponApplied, subtotal]
-  );
-  const finalTotal = Math.max(subtotal - discountAmount, 0);
+  const isCouponApplied = Boolean(appliedCoupon);
 
   const openCouponModal = () => {
     setCouponInput(appliedCoupon);
@@ -40,20 +39,17 @@ function Cart() {
   };
 
   const handleApplyCoupon = () => {
-    const normalizedCoupon = couponInput.trim().toUpperCase();
-
-    if (normalizedCoupon === "RENTEASE10") {
-      setAppliedCoupon("RENTEASE10");
+    const success = applyCoupon(couponInput);
+    if (success) {
       setCouponError("");
       setIsCouponModalOpen(false);
-      return;
+    } else {
+      setCouponError("Invalid coupon code.");
     }
-
-    setCouponError("Invalid coupon code.");
   };
 
   const handleRemoveCoupon = () => {
-    setAppliedCoupon("");
+    removeCoupon();
     setCouponInput("");
     setCouponError("");
   };
@@ -312,7 +308,7 @@ function Cart() {
                 </span>
 
                 <span className="font-medium">
-                  ₹{subtotal}
+                  ₹{cartTotal}
                 </span>
               </div>
 
@@ -324,17 +320,14 @@ function Cart() {
                     </span>
 
                     <span className="font-semibold text-[#4f8c89]">
-                      RENTEASE10
+                      {appliedCoupon}
                     </span>
                   </div>
 
                   <div className="flex justify-between">
-                    <span className="text-gray-500">
-                      Discount
-                    </span>
-
-                    <span className="font-medium text-green-600">
-                      -₹{discountAmount}
+                    <span>Subtotal</span>
+                    <span className="font-medium text-black">
+                      ₹{cartTotal}
                     </span>
                   </div>
                 </>
@@ -386,7 +379,7 @@ function Cart() {
 
             <button
               type="button"
-              onClick={() => navigate("/checkout")}
+              onClick={() => navigate("/checkout/address")}
               className="mt-6 w-full rounded-xl bg-[#4f8c89] py-3 text-sm font-semibold text-white transition hover:bg-[#376c69]"
             >
               Proceed to Checkout

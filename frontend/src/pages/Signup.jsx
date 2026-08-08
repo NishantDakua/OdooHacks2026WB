@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
+import AlertPopup from "../components/ui/AlertPopup";
 
 function Signup() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ function Signup() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [alertState, setAlertState] = useState({ show: false, message: "", onConfirm: null });
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -50,8 +52,11 @@ function Signup() {
       localStorage.setItem("token", result.data.token);
       localStorage.setItem("user", JSON.stringify(result.data.user));
 
-      alert("Account created successfully!");
-      navigate("/login");
+      setAlertState({
+        show: true,
+        message: "Account created successfully!",
+        onConfirm: () => navigate("/login")
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -208,8 +213,16 @@ function Signup() {
             Login Here
           </button>
         </p>
-
       </div>
+
+      <AlertPopup 
+        isOpen={alertState.show} 
+        message={alertState.message} 
+        onClose={() => {
+          if (alertState.onConfirm) alertState.onConfirm();
+          setAlertState({ show: false, message: "", onConfirm: null });
+        }} 
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ function ConfigureModal({
   product,
 }) {
   const [selectedOptions, setSelectedOptions] = useState({});
+  const [duration, setDuration] = useState("");
 
   if (!isOpen) return null;
 
@@ -29,7 +30,10 @@ function ConfigureModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(selectedOptions);
+    onConfirm({
+      ...selectedOptions,
+      "Rental Duration": duration || "1"
+    });
     onClose();
   };
 
@@ -100,6 +104,21 @@ function ConfigureModal({
 
             </div>
           ))}
+
+          {/* Duration Input */}
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-black">
+              Rental Duration ({product?.duration === "Monthly" ? "Months" : "Days"})
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
+              placeholder={`Enter number of ${product?.duration === "Monthly" ? "months" : "days"}`}
+            />
+          </div>
 
         </div>
 
