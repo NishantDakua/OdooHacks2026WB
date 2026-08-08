@@ -108,6 +108,17 @@ export function CartProvider({ children }) {
     0
   );
 
+  // Security Deposit: ₹1,500 per item quantity (refundable collateral)
+  const depositTotal = cart.reduce(
+    (total, item) => {
+      const itemDeposit = item.product.deposit || 1500;
+      return total + itemDeposit * item.quantity;
+    },
+    0
+  );
+
+  const taxAmount = Math.round(cartTotal * 0.18); // 18% GST
+
   const applyCoupon = (code) => {
     if (code.toUpperCase() === "RENTEASE10") {
       setAppliedCoupon("RENTEASE10");
@@ -122,7 +133,8 @@ export function CartProvider({ children }) {
 
   const isCouponApplied = appliedCoupon === "RENTEASE10";
   const discountAmount = isCouponApplied ? Math.round(cartTotal * 0.1) : 0;
-  const finalTotal = Math.max(cartTotal - discountAmount, 0);
+  const rentalSubtotal = Math.max(cartTotal - discountAmount, 0);
+  const finalTotal = rentalSubtotal + taxAmount + depositTotal;
 
   return (
     <CartContext.Provider
@@ -130,6 +142,9 @@ export function CartProvider({ children }) {
         cart,
         cartCount,
         cartTotal,
+        depositTotal,
+        taxAmount,
+        rentalSubtotal,
         addToCart,
         removeFromCart,
         updateQuantity,

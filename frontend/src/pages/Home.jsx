@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
+import Sidebar from "../components/layout/Sidebar";
 import ConfigureModal from "../components/ui/ConfigureModal";
+import AlertPopup from "../components/ui/AlertPopup";
+import ProductImage from "../components/ui/ProductImage";
+import ProductCardSkeleton from "../components/ui/ProductCardSkeleton";
+import ProductCard from "../components/ui/ProductCard";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import { products as productCatalog } from "../data/products";
@@ -11,20 +17,91 @@ function Home() {
   const { addToCart } = useCart();
   const { wishlistItems, toggleWishlist } = useWishlist();
 
+function Home() {
+  const navigate = useNavigate();
+  const { addToCart, cartCount } = useCart();
+  const { wishlistItems, toggleWishlist: toggleWishlistCtx } = useWishlist();
+
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [alertState, setAlertState] = useState({ show: false, message: "" });
+
   const [brand, setBrand] = useState("");
   const [color, setColor] = useState("");
   const [duration, setDuration] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState("relevance");
+
+  const { toggleWishlist, wishlistCount, isInWishlist } = useWishlist();
+  const { addToCart, cartCount } = useCart();
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Fetch dynamic products directly from database API
+  useEffect(() => {
+    const abortController = new AbortController();
+    
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("http://localhost:5000/api/v1/products", {
+          signal: abortController.signal
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          const formatted = json.data.map((item) => {
+            const variant = item.variants?.[0] || {};
+            const rule = item.pricelistRules?.[0] || {};
+            return {
+              id: item.id,
+              name: item.name,
+              category: item.category?.name || "General",
+              brand: variant.brand || "Standard",
+              color: variant.color || "Standard",
+              duration: rule.durationUnit === "MONTHLY" ? "Monthly" : "Daily",
+              price: Number(rule.price || 500),
+              image: item.images?.[0] || "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800",
+              quantityAvailable: variant.quantityAvailable || 0,
+            };
+          });
+          setProducts(formatted);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError("Unable to load dynamic products from database.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProducts();
+    
+    return () => abortController.abort();
+  }, []);
+
+    fetchProducts();
+  }, []);
+
+  /* ================= CONFIGURE MODAL ================= */
+
   const [configuringProduct, setConfiguringProduct] = useState(null);
 
   const filteredProducts = useMemo(() => {
     let result = [...productCatalog];
 
-    if (search.trim()) {
-      const query = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         (product) =>
           product.name.toLowerCase().includes(query) ||
@@ -63,6 +140,7 @@ function Home() {
 
     return result;
   }, [brand, color, duration, maxPrice, minPrice, search, sortBy]);
+  }, [products, debouncedSearch, brand, color, duration, minPrice, maxPrice, sortBy]);
 
   const clearFilters = () => {
     setBrand("");
@@ -82,11 +160,17 @@ function Home() {
 
     addToCart(product, 1, { "Rental Duration": "1" });
   };
+  const handleNavigate = useCallback((id) => navigate(`/product/${id}`), [navigate]);
+  const handleToggleWishlist = useCallback((product) => toggleWishlist(product), [toggleWishlist]);
+  const handleAddToCart = useCallback((product) => {
+    setConfiguringProduct(product);
+  }, []);
 
   const handleConfigurationConfirm = (options) => {
     if (configuringProduct) {
       addToCart(configuringProduct, 1, options);
       setConfiguringProduct(null);
+      setAlertState({ show: true, message: `${configuringProduct.name} added to cart` });
     }
   };
 
@@ -107,6 +191,52 @@ function Home() {
                 value={brand}
                 onChange={(event) => setBrand(event.target.value)}
                 className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-black outline-none transition focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/10"
+    <div className="min-h-screen bg-[#f5fbfb] text-black">
+      <Sidebar wishlistCount={wishlistCount} />
+
+      <main className="ml-[220px] min-h-screen">
+        <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur">
+          <div className="flex h-[76px] items-center justify-between gap-6 px-8">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Explore Products
+              </h1>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Find something you need. Rent it easily.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative w-[320px]">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search products..."
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 pr-11 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
+                />
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="1.8"
+                    stroke="currentColor"
+                    className="h-5 w-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m21 21-4.35-4.35m0 0A7.5 7.5 0 1 0 6.04 6.04a7.5 7.5 0 0 0 10.61 10.61Z"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate("/wishlist")}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-[#4f8c89] hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
               >
                 <option value="">Select brand</option>
                 <option value="Sony">Sony</option>
@@ -126,6 +256,10 @@ function Home() {
                 value={color}
                 onChange={(event) => setColor(event.target.value)}
                 className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-black outline-none transition focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/10"
+              <button
+                type="button"
+                onClick={() => navigate("/cart")}
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-[#4f8c89] hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
               >
                 <option value="">Select color</option>
                 <option value="Black">Black</option>
@@ -299,6 +433,57 @@ function Home() {
         />
       </div>
     </AppLayout>
+          {loading ? (
+            <section className="grid grid-cols-2 gap-5 xl:grid-cols-4">
+              {[...Array(8)].map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))}
+            </section>
+          ) : filteredProducts.length > 0 ? (
+            <section className="grid grid-cols-2 gap-5 xl:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  isWishlisted={isInWishlist(product.id)}
+                  onNavigate={handleNavigate}
+                  onToggleWishlist={handleToggleWishlist}
+                  onAddToCart={handleAddToCart}
+                />
+              ))}
+            </section>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-20 text-center">
+              <h3 className="text-lg font-semibold">No products found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Try changing your filters or search.
+              </p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-5 rounded-lg bg-[#4f8c89] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#376c69]"
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+
+      {/* Configure Modal */}
+      <ConfigureModal
+        isOpen={Boolean(configuringProduct)}
+        onClose={() => setConfiguringProduct(null)}
+        onConfirm={handleConfigurationConfirm}
+        product={configuringProduct}
+      />
+
+      <AlertPopup 
+        isOpen={alertState.show} 
+        message={alertState.message} 
+        onClose={() => setAlertState({ show: false, message: "" })} 
+      />
+      </main>
+    </div>
   );
 }
 

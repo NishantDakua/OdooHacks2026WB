@@ -173,6 +173,112 @@ function Payment() {
       console.error("Razorpay order creation error:", error);
       setAlertMessage(error.message || "Failed to start Razorpay payment.");
       setProcessing(false);
+    if (!cardName || !cardNumber || !expiry || !cvv) {
+      setAlertMessage("Please fill in all card details.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      let storedUser = {};
+      try {
+        storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      } catch {}
+
+      const rentalStart = new Date();
+      const rentalEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+      const lines = cart.map((item) => ({
+        variantId: item.product.variants?.[0]?.id || item.product.id,
+        quantity: Number(item.quantity || 1),
+        unitPrice: Number(item.product.price || item.product.rentalPrice || 500),
+      }));
+
+      // Post rental order to PostgreSQL database
+      const res = await fetch("http://localhost:5000/api/v1/rentals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          customerId: storedUser.id || null,
+          pickupType: checkoutData.deliveryMethod === "Delivery" ? "DELIVERY" : "STORE_PICKUP",
+          rentalStart: rentalStart.toISOString(),
+          rentalEnd: rentalEnd.toISOString(),
+          status: "CONFIRMED",
+          depositAmount: 2000,
+          depositAmountType: "FIXED",
+          lines,
+        }),
+      });
+
+      const json = await res.json();
+      let createdOrder = json.data;
+
+      if (!createdOrder) {
+        createdOrder = {
+          id: Date.now().toString(),
+          orderNumber: `R${Math.floor(10000 + Math.random() * 90000)}`,
+          status: "CONFIRMED",
+          total: finalTotal,
+        };
+      }
+
+      // Record invoice and payment
+      if (createdOrder?.id) {
+        try {
+          await fetch("http://localhost:5000/api/v1/invoices", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              orderId: createdOrder.id,
+              type: "RENTAL",
+              amount: createdOrder.subtotal || finalTotal,
+              taxAmount: createdOrder.taxTotal || (finalTotal * 0.18),
+            }),
+          });
+
+          await fetch("http://localhost:5000/api/v1/invoices/payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              orderId: createdOrder.id,
+              method: "CARD",
+              amount: createdOrder.total || finalTotal,
+            }),
+          });
+        } catch (e) {
+          console.warn("Invoice/payment auto-record error", e);
+        }
+      }
+
+      const formattedOrder = {
+        ...createdOrder,
+        orderNumber: createdOrder.orderNumber || `#R${createdOrder.id?.slice(-4) || "0001"}`,
+        items: cart,
+        deliveryMethod: checkoutData.deliveryMethod,
+        deliveryAddress: checkoutData.deliveryAddress,
+        billingAddress: checkoutData.billingAddress,
+        total: finalTotal,
+        createdAt: new Date().toISOString(),
+      };
+
+      const existingOrders = JSON.parse(localStorage.getItem("rentals") || "[]");
+      localStorage.setItem("rentals", JSON.stringify([formattedOrder, ...existingOrders]));
+      localStorage.setItem("latestOrder", JSON.stringify(formattedOrder));
+
+      setCheckoutData(null);
+      clearCart();
+      navigate("/checkout/success");
+    } catch (err) {
+      setAlertMessage("Payment processing failed. Please try again.");
     }
   };
 

@@ -1,7 +1,7 @@
 import { useCart } from "../../context/CartContext";
 
 function OrderSummary({ buttonContent, onConfirm, deliveryCharges = 0, isPaymentPage = false }) {
-  const { cart, cartTotal, discountAmount, finalTotal } = useCart();
+  const { cart, cartTotal, depositTotal, taxAmount, discountAmount, finalTotal } = useCart();
   const total = finalTotal + deliveryCharges;
 
   return (
@@ -34,7 +34,7 @@ function OrderSummary({ buttonContent, onConfirm, deliveryCharges = 0, isPayment
 
       <div className="space-y-3 text-sm">
         <div className="flex justify-between text-gray-600">
-          <span>Subtotal</span>
+          <span>Rental Subtotal</span>
           <span className="font-medium text-black">₹{cartTotal}</span>
         </div>
 
@@ -46,6 +46,16 @@ function OrderSummary({ buttonContent, onConfirm, deliveryCharges = 0, isPayment
         )}
 
         <div className="flex justify-between text-gray-600">
+          <span>GST Tax (18%)</span>
+          <span className="font-medium text-black">₹{taxAmount}</span>
+        </div>
+
+        <div className="flex justify-between text-gray-600">
+          <span>Security Deposit (Refundable)</span>
+          <span className="font-semibold text-[#4f8c89]">₹{depositTotal}</span>
+        </div>
+
+        <div className="flex justify-between text-gray-600">
           <span>Delivery Charges</span>
           <span className="font-medium text-black">
             {deliveryCharges === 0 ? "Free" : `₹${deliveryCharges}`}
@@ -53,8 +63,12 @@ function OrderSummary({ buttonContent, onConfirm, deliveryCharges = 0, isPayment
         </div>
 
         <div className="mt-4 flex justify-between border-t border-gray-200 pt-4 text-lg font-bold text-black">
-          <span>Total</span>
+          <span>Grand Total Payable</span>
           <span>₹{total}</span>
+        </div>
+
+        <div className="rounded-xl bg-[#e9f6f5] p-3 text-[11px] font-medium text-[#4f8c89]">
+          ✓ Security Deposit of ₹{depositTotal} is 100% refundable upon gear inspection.
         </div>
       </div>
 

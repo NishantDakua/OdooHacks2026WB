@@ -73,4 +73,98 @@ const addAddress = asyncHandler(async (req, res) => {
   );
 });
 
-export { getCurrentUser, getAllCustomers, addAddress };
+// Get single user by ID
+const getUserById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      phone: true,
+      profileImage: true,
+      addresses: true,
+      createdAt: true,
+      ordersAsCustomer: {
+        include: {
+          lines: { include: { variant: { include: { product: true } } } },
+          deposit: true,
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, user, "User details fetched successfully")
+  );
+});
+
+// Update user details (Admin only or self)
+const updateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, role, address } = req.body;
+
+  const existingUser = await prisma.user.findUnique({ where: { id } });
+  if (!existingUser) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // If email is changing, check uniqueness
+  if (email && email !== existingUser.email) {
+    const emailConflict = await prisma.user.findUnique({ where: { email } });
+    if (emailConflict) {
+      throw new ApiError(409, "A user with this email already exists");
+    }
+  }
+
+  const updateData = {};
+  if (name !== undefined) updateData.name = name;
+  if (email !== undefined) updateData.email = email;
+  if (phone !== undefined) updateData.phone = phone;
+  if (role !== undefined && req.user.role === "ADMIN") {
+    updateData.role = role;
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id },
+    data: updateData,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      phone: true,
+      profileImage: true,
+      addresses: true,
+      createdAt: true,
+    },
+  });
+
+  if (address && (address.line1 || address.city)) {
+    await prisma.address.create({
+      data: {
+        userId: id,
+        label: address.label || "Home",
+        line1: address.line1 || "",
+        line2: address.line2 || "",
+        city: address.city || "",
+        state: address.state || "",
+        postalCode: address.postalCode || "",
+        country: address.country || "India",
+      },
+    }).catch(() => {});
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, updatedUser, "User updated successfully in database")
+  );
+});
+
+export { getCurrentUser, getAllCustomers, addAddress, getUserById, updateUser };

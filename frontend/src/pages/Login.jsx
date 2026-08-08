@@ -40,11 +40,11 @@ function Login() {
       localStorage.setItem("token", result.data.token);
       localStorage.setItem("user", JSON.stringify(result.data.user));
 
-      setAlertState({
-        show: true,
-        message: "Login successful!",
-        onConfirm: () => navigate("/home")
-      });
+      if (result.data.user?.role === "ADMIN" || result.data.user?.role === "STAFF") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/home", { replace: true });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
