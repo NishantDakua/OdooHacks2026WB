@@ -1,5 +1,10 @@
+import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
+
+dotenv.config({
+  path: "./.env",
+});
 
 // Route imports
 import healthCheckRouter from "./routes/healthcheck.route.js";
@@ -13,6 +18,7 @@ import latefeeRouter from "./routes/latefee.route.js";
 import inspectionRouter from "./routes/inspection.route.js";
 import invoiceRouter from "./routes/invoice.route.js";
 import dashboardRouter from "./routes/dashboard.route.js";
+import paymentRouter from "./routes/payment.route.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -46,6 +52,7 @@ app.use("/api/v1/late-fees", latefeeRouter);
 app.use("/api/v1/inspections", inspectionRouter);
 app.use("/api/v1/invoices", invoiceRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
+app.use("/api/v1/payments", paymentRouter);
 
 app.get("/", (req, res) => {
   res.send("RentEase Rental Management System API is live");
