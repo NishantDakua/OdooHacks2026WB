@@ -16,6 +16,9 @@ import Profile from "./pages/Profile";
 import Rentals from "./pages/Rentals";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { WishlistProvider } from "./context/WishlistContext";
+import Address from "./pages/checkout/Address";
+import Payment from "./pages/checkout/Payment";
+import Success from "./pages/checkout/Success";
 
 function App() {
   const isAuthenticated = Boolean(localStorage.getItem("token"));
@@ -67,6 +70,33 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Cart />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/checkout/address"
+              element={
+                <ProtectedRoute>
+                  <Address />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/checkout/payment"
+              element={
+                <ProtectedRoute>
+                  <Payment />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/checkout/success"
+              element={
+                <ProtectedRoute>
+                  <Success />
                 </ProtectedRoute>
               }
             />

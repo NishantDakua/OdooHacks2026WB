@@ -1,1 +1,36 @@
 @import "tailwindcss";
+
+@media print {
+  body {
+    background-color: white !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  aside, nav, header {
+    display: none !important;
+  }
+  
+  .print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  
+  .print-header {
+    text-align: center !important;
+  }
+  
+  /* Reset background colors to white in print to save ink */
+  .bg-[#f7fbfb] {
+    background-color: transparent !important;
+  }
+  
+  .bg-white {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

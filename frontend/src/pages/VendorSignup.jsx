@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/ui/PasswordInput";
+import AlertPopup from "../components/ui/AlertPopup";
 
 function VendorSignup() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ function VendorSignup() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [alertState, setAlertState] = useState({ show: false, message: "", onConfirm: null });
 
   // If already logged in, redirect directly to dashboard
   useEffect(() => {
@@ -64,8 +66,11 @@ function VendorSignup() {
       localStorage.setItem("token", result.data.token);
       localStorage.setItem("user", JSON.stringify(result.data.user));
 
-      alert("Vendor registered successfully!");
-      navigate("/dashboard", { replace: true });
+      setAlertState({
+        show: true,
+        message: "Vendor registered successfully!",
+        onConfirm: () => navigate("/login")
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -268,8 +273,16 @@ function VendorSignup() {
             Login Here
           </button>
         </p>
-
       </div>
+
+      <AlertPopup 
+        isOpen={alertState.show} 
+        message={alertState.message} 
+        onClose={() => {
+          if (alertState.onConfirm) alertState.onConfirm();
+          setAlertState({ show: false, message: "", onConfirm: null });
+        }} 
+      />
     </div>
   );
 }

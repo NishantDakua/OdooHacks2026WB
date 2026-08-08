@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Sidebar from "../components/layout/Sidebar";
+import AppLayout from "../components/layout/AppLayout";
+import ConfigureModal from "../components/ui/ConfigureModal";
+import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
+import { products } from "../data/products";
+import AlertPopup from "../components/ui/AlertPopup";
 
 function ProductDetails() {
   const navigate = useNavigate();
@@ -47,16 +52,11 @@ function ProductDetails() {
     }
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="h-screen bg-[#f5fbfb]">
-        <Sidebar />
-        <main className="ml-[250px] flex h-screen items-center justify-center">
-          <p className="text-sm font-medium text-gray-500">Loading product details...</p>
-        </main>
-      </div>
-    );
-  }
+  const [showConfigure, setShowConfigure] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedDuration, setSelectedDuration] = useState("");
+  const [configuration, setConfiguration] = useState(null);
+  const [alertMessage, setAlertMessage] = useState("");
 
   if (!product) {
     return (
@@ -83,9 +83,9 @@ function ProductDetails() {
       ? ["1 Month", "6 Months", "1 Year"]
       : ["1 Day", "3 Days", "7 Days", "1 Month"];
 
-  const addToCart = () => {
-    if (!duration) {
-      alert("Please select a rental duration.");
+  const handleAddToCart = () => {
+    if (!selectedDuration) {
+      setAlertMessage("Please enter a rental duration.");
       return;
     }
     setCartCount((previous) => previous + quantity);
@@ -278,28 +278,36 @@ function ProductDetails() {
                   </select>
                 </div>
 
-                <div className="mt-3 shrink-0">
-                  <label className="mb-1.5 block text-sm font-semibold">Quantity</label>
-                  <div className="flex h-10 w-fit overflow-hidden rounded-xl border border-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((previous) => Math.max(1, previous - 1))}
-                      className="w-10 text-lg text-gray-600 transition hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
-                    >
-                      −
-                    </button>
-                    <span className="flex w-12 items-center justify-center border-x border-gray-200 text-sm font-semibold">
-                      {quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((previous) => previous + 1)}
-                      className="w-10 text-lg text-gray-600 transition hover:bg-[#e9f6f5] hover:text-[#4f8c89]"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+              </div>
+
+              {/* Duration */}
+              <div className="mt-4">
+
+                <label className="mb-2 block text-sm font-semibold">
+                  Rental Duration
+                </label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedDuration}
+                  onChange={(event) =>
+                    setSelectedDuration(event.target.value)
+                  }
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
+                  placeholder={`Number of ${product.duration === "Monthly" ? "Months" : "Days"}`}
+                />
+
+              </div>
+
+              {/* Quantity */}
+              <div className="mt-3">
+
+                <label className="mb-2 block text-sm font-semibold">
+                  Quantity
+                </label>
+
+                <div className="flex h-11 w-fit overflow-hidden rounded-xl border border-gray-200">
 
                 <div className="mt-auto flex shrink-0 gap-3 pt-4">
                   <button
@@ -319,10 +327,28 @@ function ProductDetails() {
                 </div>
               </div>
             </div>
-          </section>
-        </div>
-      </main>
-    </div>
+
+          </div>
+
+        </section>
+
+      </div>
+
+      {/* Configure Modal */}
+      <ConfigureModal
+        isOpen={showConfigure}
+        onClose={() => setShowConfigure(false)}
+        product={product}
+        onConfirm={handleConfiguration}
+      />
+
+      <AlertPopup 
+        isOpen={!!alertMessage} 
+        message={alertMessage} 
+        onClose={() => setAlertMessage("")} 
+      />
+
+    </AppLayout>
   );
 }
 

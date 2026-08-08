@@ -12,9 +12,34 @@ export function CartProvider({ children }) {
     }
   });
 
+  const [appliedCoupon, setAppliedCoupon] = useState(() => {
+    return localStorage.getItem("appliedCoupon") || "";
+  });
+
+  const [checkoutData, setCheckoutData] = useState(() => {
+    try {
+      const saved = localStorage.getItem("checkoutData");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   useEffect(() => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem("appliedCoupon", appliedCoupon);
+  }, [appliedCoupon]);
+
+  useEffect(() => {
+    if (checkoutData) {
+      localStorage.setItem("checkoutData", JSON.stringify(checkoutData));
+    } else {
+      localStorage.removeItem("checkoutData");
+    }
+  }, [checkoutData]);
 
   const addToCart = (product, quantity = 1, configuration = {}) => {
     setCart((previous) => {
@@ -76,10 +101,28 @@ export function CartProvider({ children }) {
   );
 
   const cartTotal = cart.reduce(
-    (total, item) =>
-      total + item.product.price * item.quantity,
+    (total, item) => {
+      const duration = Number(item.configuration?.["Rental Duration"]) || 1;
+      return total + item.product.price * item.quantity * duration;
+    },
     0
   );
+
+  const applyCoupon = (code) => {
+    if (code.toUpperCase() === "RENTEASE10") {
+      setAppliedCoupon("RENTEASE10");
+      return true;
+    }
+    return false;
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon("");
+  };
+
+  const isCouponApplied = appliedCoupon === "RENTEASE10";
+  const discountAmount = isCouponApplied ? Math.round(cartTotal * 0.1) : 0;
+  const finalTotal = Math.max(cartTotal - discountAmount, 0);
 
   return (
     <CartContext.Provider
@@ -91,6 +134,13 @@ export function CartProvider({ children }) {
         removeFromCart,
         updateQuantity,
         clearCart,
+        appliedCoupon,
+        applyCoupon,
+        removeCoupon,
+        discountAmount,
+        finalTotal,
+        checkoutData,
+        setCheckoutData,
       }}
     >
       {children}

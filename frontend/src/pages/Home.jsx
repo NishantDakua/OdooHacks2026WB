@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "../components/layout/Sidebar";
+import AppLayout from "../components/layout/AppLayout";
+import ConfigureModal from "../components/ui/ConfigureModal";
+import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
+
+import { products } from "../data/products";
 
 function Home() {
   const navigate = useNavigate();
@@ -51,8 +56,13 @@ function Home() {
       }
     };
 
-    fetchProducts();
-  }, []);
+  /* ================= CONFIGURE MODAL ================= */
+
+  const [configuringProduct, setConfiguringProduct] = useState(null);
+
+  /* =========================================================
+     FILTER + SEARCH + SORT
+  ========================================================= */
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
@@ -108,17 +118,51 @@ function Home() {
     setSortBy("relevance");
   };
 
-  const toggleWishlist = (productId) => {
-    setWishlist((previous) =>
-      previous.includes(productId)
-        ? previous.filter((id) => id !== productId)
-        : [...previous, productId]
-    );
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleAddToCart = (product) => {
+    if (product.options && product.options.length > 0) {
+      setConfiguringProduct(product);
+      return;
+    }
+
+    addToCart(product, 1, {});
+
+    setToastMessage(`${product.name} added to cart`);
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage("");
+    }, 1800);
   };
 
-  const addToCart = (product) => {
-    setCartCount((previous) => previous + 1);
+  const handleConfigurationConfirm = (options) => {
+    if (configuringProduct) {
+      addToCart(configuringProduct, 1, options);
+      setToastMessage(`${configuringProduct.name} added to cart`);
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+
+      toastTimerRef.current = setTimeout(() => {
+        setToastMessage("");
+      }, 1800);
+    }
   };
+
+  /* =========================================================
+     SHARED SELECT CLASS
+  ========================================================= */
 
   const selectClass =
     "h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-black outline-none transition focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/10";
@@ -446,8 +490,16 @@ function Home() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      )}
+
+      {/* Configure Modal */}
+      <ConfigureModal
+        isOpen={Boolean(configuringProduct)}
+        onClose={() => setConfiguringProduct(null)}
+        onConfirm={handleConfigurationConfirm}
+        product={configuringProduct}
+      />
+    </AppLayout>
   );
 }
 
