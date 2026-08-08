@@ -32,7 +32,7 @@ function Login() {
       localStorage.setItem("user", JSON.stringify(result.data.user));
 
       alert("Login successful!");
-      navigate("/dashboard");
+      navigate("/home");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -73,10 +73,10 @@ function Login() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Email / Login ID */}
+            {/* Email */}
             <div className="mb-5">
               <label className="mb-2 block text-sm font-medium text-black">
-                Email / Login ID
+                Email
               </label>
 
               <input
@@ -84,7 +84,7 @@ function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email or login ID"
+                placeholder="Enter your email"
                 className="w-full rounded-xl border border-black bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-gray-400 focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/20"
               />
             </div>
