@@ -1,0 +1,509 @@
+// ============================================================================
+// Rental Management System — Prisma Schema (PostgreSQL)
+// ============================================================================
+// Design notes:
+// - All money fields use Decimal(10,2), never Float — floats drift on
+//   repeated arithmetic (late fee + damage + tax), Decimal doesn't.
+// - Status fields are enums, not free-text strings — an invalid status
+//   ("retuned", "REFUNDD") simply can't be inserted.
+// - Deposit, Inspection are separate models from RentalOrder (not extra
+//   columns bolted onto it) so each has one clear responsibility and the
+//   order model doesn't become a 40-column dumping ground.
+// - IDs use cuid() — sortable-ish, collision-safe, no round-trip to DB
+//   needed before you have an id to reference (unlike serial ints).
+// - Multi-tenancy: each company gets its own isolated PostgreSQL database.
+//   The DATABASE_URL env var points to the appropriate company DB.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// url is declared in prisma.config.ts (Prisma 7 requirement).
+// The provider still goes here — it tells Prisma which SQL dialect to use.
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  STAFF
+}
+
+enum RentalOrderStatus {
+  DRAFT       // quotation only, not confirmed/paid
+  CONFIRMED   // paid, deposit collected, awaiting pickup
+  PICKED_UP   // active rental, product with customer
+  RETURNED    // physically returned, awaiting inspection
+  CLOSED      // inspected, deposit settled + refunded, order done
+  CANCELLED
+}
+
+enum PickupType {
+  DELIVERY
+  STORE_PICKUP
+}
+
+enum DepositAmountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum DepositStatus {
+  PENDING     // order placed, deposit not yet paid
+  COLLECTED   // paid, order not picked up yet
+  HELD        // product with customer, deposit held against it
+  SETTLED     // deductions computed at return, refund number final
+  REFUNDED    // payout complete
+}
+
+// Reused by both LateFeeRule (charge basis) and PricelistRule (duration
+// unit) — same underlying concept: a chargeable time granularity.
+enum TimeUnit {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum InvoiceType {
+  RENTAL
+  DEPOSIT
+  LATE_FEE
+  DAMAGE
+  REFUND
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  CASH
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum MaintenanceTrigger {
+  DAMAGE_REPORTED
+  USAGE_THRESHOLD   // deterministic "predictive maintenance" bonus feature
+  MANUAL
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum NotificationType {
+  ORDER_CONFIRMED
+  PICKUP_REMINDER
+  RETURN_REMINDER
+  OVERDUE_NOTICE
+  DEPOSIT_REFUNDED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ==================== USERS & ADDRESSES ====================
+
+model User {
+  id           String   @id @default(cuid())
+  role         UserRole @default(CUSTOMER)
+  name         String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  profileImage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addresses        Address[]
+  ordersAsCustomer RentalOrder[] @relation("CustomerOrders")
+  ordersCreated    RentalOrder[] @relation("StaffCreatedOrders")
+  inspectionsDone  Inspection[]  @relation("InspectedBy")
+  notifications    Notification[]
+
+  @@index([role])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  label      String?  // "Home", "Office"
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  country    String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  shippingOrders RentalOrder[] @relation("ShippingAddress")
+
+  @@index([userId])
+}
+
+// ==================== CATALOG ====================
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  products Product[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  images      String[]
+  isRentable  Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  variants       ProductVariant[]
+  pricelistRules PricelistRule[]
+  lateFeeRules   LateFeeRule[]
+
+  @@index([categoryId])
+}
+
+// One product (e.g. "DSLR Camera") can have many rentable variants
+// (Brand/Color/Size combinations).
+model ProductVariant {
+  id                String   @id @default(cuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id])
+  sku               String   @unique
+  brand             String?
+  manufacturer      String?
+  color             String?
+  size              String?
+  quantityTotal     Int      @default(1)
+  quantityAvailable Int      @default(1)
+  createdAt         DateTime @default(now())
+
+  orderLines          RentalOrderLine[]
+  pricelistRules      PricelistRule[]
+  lateFeeRules        LateFeeRule[]
+  maintenanceRequests MaintenanceRequest[]
+  stockMovements      StockMovement[]
+
+  @@index([productId])
+}
+
+// ==================== PRICING ====================
+
+model Pricelist {
+  id        String    @id @default(cuid())
+  name      String
+  isDefault Boolean   @default(false)  // one default pricelist applicable to all products
+  startDate DateTime?                   // set for time-period-specific pricelists
+  endDate   DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  rules  PricelistRule[]
+  orders RentalOrder[]
+}
+
+// Tiered pricing: e.g. 1-3 days = ₹X/day, 4-7 days = ₹Y/day, 1 month = ₹Z.
+// Rule can target a whole Product or one specific ProductVariant (variant
+// wins if both would match — enforce that in application code, not here).
+model PricelistRule {
+  id            String          @id @default(cuid())
+  pricelistId   String
+  pricelist     Pricelist       @relation(fields: [pricelistId], references: [id])
+  productId     String?
+  product       Product?        @relation(fields: [productId], references: [id])
+  variantId     String?
+  variant       ProductVariant? @relation(fields: [variantId], references: [id])
+  durationValue Int             // e.g. 3
+  durationUnit  TimeUnit        // e.g. DAILY -> "3 days" tier
+  price         Decimal         @db.Decimal(10, 2)
+
+  @@index([pricelistId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+// ==================== RENTAL ORDER (core) ====================
+
+model RentalOrder {
+  id          String @id @default(cuid())
+  orderNumber String @unique // e.g. "R00023" — also the QR payload
+
+  customerId       String
+  customer         User    @relation("CustomerOrders", fields: [customerId], references: [id])
+  createdByStaffId String? // set only for in-store/admin-created orders
+  createdByStaff   User?   @relation("StaffCreatedOrders", fields: [createdByStaffId], references: [id])
+
+  pickupType        PickupType
+  shippingAddressId String?
+  shippingAddress   Address?   @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+
+  status RentalOrderStatus @default(DRAFT)
+
+  rentalStart    DateTime  // pickup/delivery date
+  rentalEnd      DateTime  // expected return date — late fee clock starts here
+  actualPickupAt DateTime?
+  actualReturnAt DateTime?
+
+  pricelistId String?
+  pricelist   Pricelist? @relation(fields: [pricelistId], references: [id])
+
+  subtotal Decimal @db.Decimal(10, 2) @default(0)
+  taxTotal Decimal @db.Decimal(10, 2) @default(0)
+  total    Decimal @db.Decimal(10, 2) @default(0)
+
+  qrCode String @unique // encodes orderNumber, scanned at pickup/return
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines           RentalOrderLine[]
+  deposit         Deposit?
+  inspection      Inspection?
+  invoices        Invoice[]
+  payments        Payment[]
+  pickupChecklist PickupChecklistItem[]
+  notifications   Notification[]
+  stockMovements  StockMovement[]
+
+  // Dashboard queries hit these constantly — index them.
+  @@index([status])
+  @@index([rentalEnd])
+  @@index([customerId])
+}
+
+model RentalOrderLine {
+  id        String         @id @default(cuid())
+  orderId   String
+  order     RentalOrder    @relation(fields: [orderId], references: [id])
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  quantity  Int            @default(1)
+  unitPrice Decimal        @db.Decimal(10, 2) // snapshot at booking time — pricelist may change later
+  lineTotal Decimal        @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+// ==================== DEPOSIT ENGINE ====================
+
+model Deposit {
+  id      String      @id @default(cuid())
+  orderId String      @unique
+  order   RentalOrder @relation(fields: [orderId], references: [id])
+
+  amountType      DepositAmountType @default(FIXED)
+  percentage      Decimal?          @db.Decimal(5, 2) // used if amountType = PERCENTAGE
+  amountCollected Decimal           @db.Decimal(10, 2)
+
+  status DepositStatus @default(PENDING)
+
+  // Deduction inputs — set by the late fee engine and the return inspection
+  lateFeeDeducted Decimal @db.Decimal(10, 2) @default(0)
+  damageDeducted  Decimal @db.Decimal(10, 2) @default(0)
+  otherDeductions Decimal @db.Decimal(10, 2) @default(0)
+
+  // Computed once at settlement time and stored (never derived live in a
+  // view — you want the exact number that was actually refunded, frozen).
+  totalDeduction  Decimal @db.Decimal(10, 2) @default(0)
+  refundAmount    Decimal @db.Decimal(10, 2) @default(0) // = amountCollected - totalDeduction, min 0
+  shortfallAmount Decimal @db.Decimal(10, 2) @default(0) // = max(0, totalDeduction - amountCollected)
+
+  refundedAt DateTime?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// ==================== LATE FEE ENGINE ====================
+
+// Most-specific-wins: a variant rule beats a product rule beats the
+// company-wide default (productId AND variantId both null).
+model LateFeeRule {
+  id               String          @id @default(cuid())
+  name             String
+  productId        String?
+  product          Product?        @relation(fields: [productId], references: [id])
+  variantId        String?
+  variant          ProductVariant? @relation(fields: [variantId], references: [id])
+  chargeBasis      TimeUnit
+  rate             Decimal         @db.Decimal(10, 2)
+  gracePeriodHours Float           @default(1)
+  maxFee           Decimal?        @db.Decimal(10, 2)
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+
+  @@index([productId])
+  @@index([variantId])
+}
+
+// ==================== PICKUP & RETURN ====================
+
+model PickupChecklistItem {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     RentalOrder @relation(fields: [orderId], references: [id])
+  itemName  String
+  isChecked Boolean     @default(false)
+
+  @@index([orderId])
+}
+
+model Inspection {
+  id             String      @id @default(cuid())
+  orderId        String      @unique
+  order          RentalOrder @relation(fields: [orderId], references: [id])
+  inspectedById  String
+  inspectedBy    User        @relation("InspectedBy", fields: [inspectedById], references: [id])
+  inspectionDate DateTime    @default(now())
+  totalDamageCost Decimal    @db.Decimal(10, 2) @default(0)
+
+  lines InspectionLine[]
+}
+
+model InspectionLine {
+  id              String     @id @default(cuid())
+  inspectionId    String
+  inspection      Inspection @relation(fields: [inspectionId], references: [id])
+  itemName        String     // e.g. "Lens cap", "Charger", "Body condition"
+  isOk            Boolean    @default(true)
+  deductionAmount Decimal    @db.Decimal(10, 2) @default(0)
+  notes           String?
+
+  @@index([inspectionId])
+}
+
+// ==================== INVOICING & PAYMENTS ====================
+
+model Invoice {
+  id            String        @id @default(cuid())
+  orderId       String
+  order         RentalOrder   @relation(fields: [orderId], references: [id])
+  invoiceNumber String        @unique
+  type          InvoiceType   // RENTAL / DEPOSIT / LATE_FEE / DAMAGE / REFUND
+  status        InvoiceStatus @default(DRAFT)
+  amount        Decimal       @db.Decimal(10, 2)
+  taxAmount     Decimal       @db.Decimal(10, 2) @default(0)
+  issuedAt      DateTime?
+  pdfUrl        String?
+  createdAt     DateTime      @default(now())
+
+  payments Payment[]
+
+  @@index([orderId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          RentalOrder   @relation(fields: [orderId], references: [id])
+  invoiceId      String?
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  amount         Decimal       @db.Decimal(10, 2)
+  transactionRef String?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([orderId])
+}
+
+// ==================== MAINTENANCE (bonus: damage-triggered repair) ====================
+
+model MaintenanceRequest {
+  id          String             @id @default(cuid())
+  variantId   String
+  variant     ProductVariant     @relation(fields: [variantId], references: [id])
+  trigger     MaintenanceTrigger
+  status      MaintenanceStatus  @default(OPEN)
+  description String?
+  cost        Decimal?           @db.Decimal(10, 2)
+  createdAt   DateTime           @default(now())
+  resolvedAt  DateTime?
+
+  @@index([variantId])
+  @@index([status])
+}
+
+// ==================== NOTIFICATIONS (bonus: automatic reminders) ====================
+
+model Notification {
+  id          String              @id @default(cuid())
+  type        NotificationType
+  channel     NotificationChannel @default(EMAIL)
+  status      NotificationStatus  @default(PENDING)
+  recipientId String
+  recipient   User                @relation(fields: [recipientId], references: [id])
+  orderId     String?
+  order       RentalOrder?        @relation(fields: [orderId], references: [id])
+  sentAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ==================== ADMIN CONFIG ====================
+
+model QuotationTemplate {
+  id         String   @id @default(cuid())
+  name       String
+  headerText String?
+  footerText String?
+  terms      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// Audit trail for stock changes at pickup/return — also feeds the
+// dashboard's "products currently out" and inventory KPIs.
+model StockMovement {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  orderId   String?
+  order     RentalOrder?   @relation(fields: [orderId], references: [id])
+  type      String         // "PICKUP" | "RETURN" | "ADJUSTMENT"
+  quantity  Int
+  createdAt DateTime       @default(now())
+
+  @@index([variantId])
+  @@index([orderId])
+}
