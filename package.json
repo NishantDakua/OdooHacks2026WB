@@ -29,6 +29,8 @@
     "multer": "^2.2.0",
     "nodemon": "^3.1.14",
     "pg": "^8.22.0",
-    "prisma": "^7.9.1"
+    "prisma": "^7.9.1",
+    "prisma-client": "^0.0.0",
+    "razorpay": "^2.9.8"
   }
 }
