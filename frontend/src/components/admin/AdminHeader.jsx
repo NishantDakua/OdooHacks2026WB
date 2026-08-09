@@ -70,7 +70,7 @@ function AdminHeader() {
             type="text"
             value={headerSearch}
             onChange={(e) => setHeaderSearch(e.target.value)}
-            placeholder="Search (min 4 characters)..."
+            placeholder="Search..."
             className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
           />
           <svg
@@ -81,11 +81,6 @@ function AdminHeader() {
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          {headerSearch.trim().length > 0 && headerSearch.trim().length < 4 && (
-            <span className="absolute -bottom-5 left-1 text-[11px] font-medium text-amber-600">
-              Type at least 4 letters to search...
-            </span>
-          )}
         </div>
 
         {/* Notification Bell */}

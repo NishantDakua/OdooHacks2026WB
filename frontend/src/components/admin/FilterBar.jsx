@@ -13,16 +13,13 @@ function FilterBar({
 }) {
   const [localSearch, setLocalSearch] = useState(search);
 
-  // Search debounce (400ms) with >= 4 character length threshold
+  // Search debounce (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      const trimmed = localSearch.trim();
-      if (trimmed.length === 0 || trimmed.length >= 4) {
-        if (localSearch !== search) {
-          onSearchChange(localSearch);
-        }
+      if (localSearch !== search) {
+        onSearchChange(localSearch);
       }
-    }, 400);
+    }, 300);
     return () => clearTimeout(timer);
   }, [localSearch, search, onSearchChange]);
 
@@ -41,7 +38,7 @@ function FilterBar({
             type="text"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
-            placeholder="Search ref, customer, product (min 4 chars)..."
+            placeholder="Search ref, customer, product..."
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 outline-none transition focus:border-[#4f8c89] focus:ring-2 focus:ring-[#4f8c89]/10 shadow-sm"
           />
           <svg
@@ -57,11 +54,6 @@ function FilterBar({
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
           </svg>
-          {localSearch.trim().length > 0 && localSearch.trim().length < 4 && (
-            <span className="absolute -bottom-5 left-1 text-[11px] font-medium text-amber-600">
-              Type at least 4 letters to search...
-            </span>
-          )}
         </div>
 
         {/* Status Filter */}

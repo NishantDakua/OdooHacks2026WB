@@ -49,14 +49,13 @@ function Home() {
     let result = [...products];
 
     const query = debouncedSearch.trim();
-    // Only search if user typed at least 4 characters
-    if (query.length >= 4) {
+    if (query) {
       const lowerQuery = query.toLowerCase();
       result = result.filter(
         (product) =>
-          product.name.toLowerCase().includes(lowerQuery) ||
-          product.category.toLowerCase().includes(lowerQuery) ||
-          product.brand.toLowerCase().includes(lowerQuery)
+          product.name?.toLowerCase().includes(lowerQuery) ||
+          product.category?.toLowerCase().includes(lowerQuery) ||
+          product.brand?.toLowerCase().includes(lowerQuery)
       );
     }
 
@@ -143,10 +142,10 @@ function Home() {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search products (min 4 characters)..."
+                  placeholder="Search products..."
                   className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 pr-11 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
                 />
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
@@ -162,11 +161,6 @@ function Home() {
                     />
                   </svg>
                 </div>
-                {search.trim().length > 0 && search.trim().length < 4 && (
-                  <span className="absolute -bottom-5 left-1 text-[11px] font-medium text-amber-600">
-                    Type at least 4 letters to search...
-                  </span>
-                )}
               </div>
 
               <button
