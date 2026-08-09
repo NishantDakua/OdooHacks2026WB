@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import path from "path";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "rentease",
@@ -17,10 +18,15 @@ const uploadOnCloudinary = async (localFilePath) => {
     if (fs.existsSync(localFilePath)) {
       fs.unlinkSync(localFilePath);
     }
-    return response;
+    return { url: response.secure_url, isCloudinary: true };
   } catch (error) {
+    console.warn(
+      "[Cloudinary Upload Warning] Cloudinary service returned error, serving from local static storage:",
+      error.message || error
+    );
     if (fs.existsSync(localFilePath)) {
-      fs.unlinkSync(localFilePath);
+      const fileName = path.basename(localFilePath);
+      return { url: `http://localhost:5000/temp/${fileName}`, isCloudinary: false };
     }
     return null;
   }

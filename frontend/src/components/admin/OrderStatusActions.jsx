@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { adminOrderService } from "../../services/adminOrderService";
 import Modal from "../ui/Modal";
+import { queueOfflineAction } from "../../lib/db/offlineSync";
 
 function OrderStatusActions({ order, onOrderUpdated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [confirmModal, setConfirmModal] = useState({ open: false, targetStatus: null, title: "", message: "" });
   const [invoiceModal, setInvoiceModal] = useState(false);
   const [settleModal, setSettleModal] = useState(false);
@@ -16,6 +18,20 @@ function OrderStatusActions({ order, onOrderUpdated }) {
     try {
       setLoading(true);
       setError("");
+      setSuccessMsg("");
+
+      if (!navigator.onLine) {
+        await queueOfflineAction({
+          action: `Update Order Status to ${newStatus}`,
+          endpoint: `http://localhost:5000/api/v1/rentals/${order.id}/status`,
+          method: "PATCH",
+          payload: { status: newStatus },
+        });
+        setSuccessMsg("⚡ Offline: Action queued locally. Will sync when back online.");
+        setConfirmModal({ open: false, targetStatus: null, title: "", message: "" });
+        return;
+      }
+
       await adminOrderService.updateOrderStatus(order.id, newStatus);
       setConfirmModal({ open: false, targetStatus: null, title: "", message: "" });
       if (onOrderUpdated) onOrderUpdated();

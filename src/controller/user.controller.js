@@ -5,6 +5,10 @@ import { asyncHandler } from "../utils/async-handler.js";
 
 // Get logged-in user profile
 const getCurrentUser = asyncHandler(async (req, res) => {
+  if (!req.user?.id || typeof req.user.id !== "string") {
+    throw new ApiError(401, "Unauthorized - Invalid user context");
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: {
@@ -27,22 +31,32 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 // List all customers (Admin/Staff dashboard view)
 const getAllCustomers = asyncHandler(async (req, res) => {
   const customers = await prisma.user.findMany({
-    where: { role: "CUSTOMER" },
     select: {
       id: true,
       name: true,
       email: true,
       phone: true,
+      role: true,
       createdAt: true,
       _count: {
-        select: { ordersAsCustomer: true },
+        select: {
+          ordersAsCustomer: true,
+          ordersCreated: true,
+        },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
+  const formatted = customers.map((u) => ({
+    ...u,
+    _count: {
+      ordersAsCustomer: (u._count?.ordersAsCustomer || 0) + (u._count?.ordersCreated || 0),
+    },
+  }));
+
   return res.status(200).json(
-    new ApiResponse(200, customers, "Customers fetched successfully")
+    new ApiResponse(200, formatted, "Customers fetched successfully")
   );
 });
 
@@ -76,6 +90,11 @@ const addAddress = asyncHandler(async (req, res) => {
 // Get single user by ID
 const getUserById = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  if (!id || id === "undefined" || id === "null" || typeof id !== "string") {
+    throw new ApiError(400, "Valid user ID is required");
+  }
+
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -110,6 +129,10 @@ const getUserById = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, email, phone, role, address } = req.body;
+
+  if (!id || id === "undefined" || id === "null" || typeof id !== "string") {
+    throw new ApiError(400, "Valid user ID is required");
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { id } });
   if (!existingUser) {

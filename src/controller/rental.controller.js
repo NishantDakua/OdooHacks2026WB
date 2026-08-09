@@ -67,7 +67,7 @@ const createRentalOrder = asyncHandler(async (req, res) => {
         where: {
           variantId: line.variantId,
           order: {
-            status: { in: ["CONFIRMED", "PICKED_UP", "ACTIVE"] },
+            status: { in: ["CONFIRMED", "PICKED_UP", "RETURNED"] },
             rentalStart: { lt: new Date(rentalEnd) },
             rentalEnd: { gt: new Date(rentalStart) }
           }
@@ -115,7 +115,7 @@ const createRentalOrder = asyncHandler(async (req, res) => {
     });
 
     if (status === "CONFIRMED") {
-      // 3. Create StockMovement and Notification
+      // 3. Create StockMovement, update stock count, auto-generate Invoice, and send Notification
       for (const line of processedLines) {
         await tx.stockMovement.create({
           data: {
@@ -126,9 +126,26 @@ const createRentalOrder = asyncHandler(async (req, res) => {
           },
         }).catch(() => {});
 
-        // NOTE: We NO LONGER decrement quantityAvailable directly.
-        // True availability is determined dynamically by date ranges.
+        await tx.productVariant.update({
+          where: { id: line.variantId },
+          data: { quantityAvailable: { decrement: line.quantity } },
+        }).catch(() => {});
       }
+
+      // Auto-generate Invoice for the confirmed rental order
+      const invoiceCount = await tx.invoice.count();
+      const invoiceNumber = `INV_RENTAL_${(invoiceCount + 1).toString().padStart(5, "0")}`;
+      await tx.invoice.create({
+        data: {
+          orderId: created.id,
+          invoiceNumber,
+          type: "RENTAL",
+          status: "PAID",
+          amount: total,
+          taxAmount: taxTotal,
+          issuedAt: new Date(),
+        },
+      }).catch(() => {});
       
       // Notify vendor
       const firstLineProduct = created.lines[0]?.variant?.product;

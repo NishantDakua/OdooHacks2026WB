@@ -1,21 +1,19 @@
 import { useState } from "react";
+import { getOptimizedImageUrl, getResponsiveSrcSet } from "../../utils/image";
 
-export default function ProductImage({ src, alt, className, width = 400 }) {
+export default function ProductImage({
+  src,
+  alt,
+  className = "",
+  width = 400,
+  priority = false,
+  sizes = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw",
+}) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Optimize Unsplash images if applicable
-  const getOptimizedSrc = (url) => {
-    if (!url) return "";
-    if (url.includes("images.unsplash.com")) {
-      // Replace existing width parameter or add one
-      const urlObj = new URL(url);
-      urlObj.searchParams.set("w", width);
-      urlObj.searchParams.set("q", 80);
-      return urlObj.toString();
-    }
-    return url;
-  };
+  const optimizedSrc = getOptimizedImageUrl(src, { width });
+  const srcSet = getResponsiveSrcSet(src);
 
   return (
     <div className={`relative overflow-hidden bg-gray-100 ${className}`}>
@@ -23,9 +21,12 @@ export default function ProductImage({ src, alt, className, width = 400 }) {
         <div className="absolute inset-0 animate-pulse bg-gray-200" />
       )}
       <img
-        src={getOptimizedSrc(src)}
-        alt={alt}
-        loading="lazy"
+        src={optimizedSrc}
+        srcSet={srcSet || undefined}
+        sizes={srcSet ? sizes : undefined}
+        alt={alt || "Product image"}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
         onLoad={() => setIsLoaded(true)}
         onError={() => setHasError(true)}
         className={`h-full w-full object-cover transition duration-500 ${

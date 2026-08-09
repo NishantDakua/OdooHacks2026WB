@@ -10,12 +10,16 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     req.headers.authorization?.replace("Bearer ", "") ||
     req.cookies?.accessToken;
 
-  if (!token) {
+  if (!token || token === "undefined" || token === "null" || token.trim() === "") {
     throw new ApiError(401, "Unauthorized request — missing access token");
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || !decoded.id || typeof decoded.id !== "string") {
+      throw new ApiError(401, "Invalid access token payload — missing valid user ID");
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {

@@ -13,22 +13,10 @@ export function CartProvider({ children }) {
       let removedItems = 0;
 
       for (const item of parsedCart) {
-        const variantId = item.variantId || item.configuration?.variantId || item.product?.variants?.[0]?.id;
-        const variantExists = item.product?.variants?.some(v => v.id === variantId);
-        
-        if (item.product && variantExists) {
+        if (item && item.product && item.product.id) {
+          const variantId = item.variantId || item.configuration?.variantId || item.product?.variants?.[0]?.id || `var-${item.product.id}`;
           validCart.push({ ...item, variantId });
-        } else {
-          removedItems++;
         }
-      }
-
-      if (removedItems > 0) {
-        setTimeout(() => {
-          // Using a simple timeout to ensure DOM is ready for any global toast if available,
-          // though typically context doesn't mount toast directly.
-          console.warn(`${removedItems} stale cart items were removed because they are no longer available.`);
-        }, 1000);
       }
 
       return validCart;

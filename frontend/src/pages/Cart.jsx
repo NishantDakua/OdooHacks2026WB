@@ -21,6 +21,8 @@ function Cart() {
     applyCoupon,
     removeCoupon,
     discountAmount,
+    taxAmount,
+    depositTotal,
     finalTotal,
     cartTotal,
   } = useCart();
@@ -292,71 +294,49 @@ function Cart() {
 
             <div className="space-y-3 text-sm">
 
-              <div className="flex justify-between">
-                <span className="text-gray-500">
-                  Items
-                </span>
-
-                <span className="font-medium">
-                  {cartCount}
-                </span>
+              <div className="flex justify-between text-gray-600">
+                <span>Rental Subtotal ({cartCount} item{cartCount !== 1 ? "s" : ""})</span>
+                <span className="font-medium text-black">₹{cartTotal}</span>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-gray-500">
-                  Rental Subtotal
-                </span>
-
-                <span className="font-medium">
-                  ₹{cartTotal}
-                </span>
-              </div>
-
-              {isCouponApplied && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">
-                      Coupon Applied
-                    </span>
-
-                    <span className="font-semibold text-[#4f8c89]">
-                      {appliedCoupon}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span className="font-medium text-black">
-                      ₹{cartTotal}
-                    </span>
-                  </div>
-                </>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-600">
+                  <span>Coupon Discount ({appliedCoupon})</span>
+                  <span className="font-semibold">-₹{discountAmount}</span>
+                </div>
               )}
 
-              <div className="flex justify-between">
-                <span className="text-gray-500">
-                  Delivery Charges
-                </span>
+              <div className="flex justify-between text-gray-600">
+                <span>GST Tax (18%)</span>
+                <span className="font-medium text-black">₹{taxAmount}</span>
+              </div>
 
-                <span className="font-medium text-green-600">
-                  Free
-                </span>
+              <div className="flex justify-between text-gray-600">
+                <span>Refundable Deposit</span>
+                <span className="font-semibold text-[#4f8c89]">₹{depositTotal}</span>
+              </div>
+
+              <div className="flex justify-between text-gray-600">
+                <span>Delivery Charges</span>
+                <span className="font-medium text-emerald-600">Free</span>
               </div>
 
             </div>
 
-            <div className="my-5 border-t border-gray-100" />
+            <div className="my-4 border-t border-gray-100" />
 
             <div className="flex items-center justify-between">
-
-              <span className="font-semibold">
-                Total
-              </span>
-
-              <span className="text-2xl font-bold">
+              <div>
+                <span className="font-bold text-black text-base">Grand Total</span>
+                <p className="text-[11px] text-gray-500">Includes ₹{depositTotal} refundable deposit</p>
+              </div>
+              <span className="text-2xl font-bold text-black">
                 ₹{finalTotal}
               </span>
+            </div>
 
+            <div className="mt-3 rounded-xl bg-[#e9f6f5] p-3 text-[11px] font-medium text-[#4f8c89]">
+              ✓ ₹{depositTotal} Security Deposit is 100% refundable upon gear return.
             </div>
 
             <button

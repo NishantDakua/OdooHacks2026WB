@@ -4,8 +4,10 @@ import AppLayout from "../../components/layout/AppLayout";
 import OrderSummary from "../../components/ui/OrderSummary";
 import { useCart } from "../../context/CartContext";
 import AlertPopup from "../../components/ui/AlertPopup";
+import { adminOrderService } from "../../services/adminOrderService";
+import { clearCachedProducts } from "../../lib/db/catalogCache";
 
-const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TNF744FIZN9GaR";
 
 function Payment() {
   const navigate = useNavigate();
@@ -116,8 +118,30 @@ function Payment() {
               return;
             }
 
-            // ── Verification passed — persist order locally ─────────────
-            const newOrder = {
+            // ── Verification passed — persist order in PostgreSQL database ─────────
+            let createdDbOrder = null;
+            try {
+              const depositTotal = cart.reduce((tot, item) => tot + (item.product.deposit || 1500) * item.quantity, 0);
+              const rentalOrderPayload = {
+                pickupType: checkoutData?.deliveryMethod === "Store Pickup" ? "STORE_PICKUP" : "DELIVERY",
+                rentalStart: cart[0]?.configuration?.["Rental Start"] || new Date().toISOString(),
+                rentalEnd: cart[0]?.configuration?.["Rental End"] || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                lines: cart.map((item) => ({
+                  variantId: item.variantId || item.product?.variants?.[0]?.id,
+                  quantity: Number(item.quantity || 1),
+                  unitPrice: Number(item.product.price),
+                })),
+                depositAmount: depositTotal,
+                status: "CONFIRMED",
+              };
+
+              createdDbOrder = await adminOrderService.createOrder(rentalOrderPayload);
+              await clearCachedProducts();
+            } catch (dbErr) {
+              console.warn("Could not save to backend database, falling back to local:", dbErr);
+            }
+
+            const newOrder = createdDbOrder || {
               id: Date.now().toString(),
               orderNumber: `RENT-${Math.floor(100000 + Math.random() * 900000)}`,
               userId: "demo-user-1",

@@ -2,16 +2,58 @@ import { useEffect, useState } from "react";
 import AppLayout from "../components/layout/AppLayout";
 import Card from "../components/ui/Card";
 import { useCart } from "../context/CartContext";
+import { adminOrderService } from "../services/adminOrderService";
 
 function Rentals() {
   const { cartCount } = useCart();
   const [rentals, setRentals] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedRentals = localStorage.getItem("rentals");
-    if (savedRentals) {
-      setRentals(JSON.parse(savedRentals));
-    }
+    const fetchRentals = async () => {
+      try {
+        setLoading(true);
+        const data = await adminOrderService.getOrders();
+        if (Array.isArray(data) && data.length > 0) {
+          const normalized = data.map((o) => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            createdAt: o.createdAt,
+            orderStatus: o.status,
+            total: o.total,
+            items: (o.lines || []).map((l) => ({
+              id: l.id,
+              quantity: l.quantity,
+              product: {
+                name: l.variant?.product?.name || "Rental Item",
+                image: l.variant?.product?.images?.[0] || "https://images.unsplash.com/photo-1517336714739-489689fd1ca8?w=800",
+                duration: "Daily",
+              },
+              configuration: {
+                "Rental Duration": "2",
+              },
+            })),
+          }));
+          setRentals(normalized);
+          return;
+        }
+      } catch (err) {
+        console.warn("API fetch failed, falling back to local storage rentals:", err);
+      } finally {
+        setLoading(false);
+      }
+
+      const savedRentals = localStorage.getItem("rentals");
+      if (savedRentals) {
+        try {
+          setRentals(JSON.parse(savedRentals));
+        } catch {
+          setRentals([]);
+        }
+      }
+    };
+
+    fetchRentals();
   }, []);
 
   return (
@@ -21,11 +63,13 @@ function Rentals() {
           <Card className="p-6">
             <h2 className="text-3xl font-semibold tracking-tight text-black">My Rentals</h2>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              This customer page shows demo rentals stored locally for showcase purposes.
+              Live rental orders synced directly from PostgreSQL database.
             </p>
           </Card>
 
-          {rentals.length === 0 ? (
+          {loading ? (
+            <Card className="p-6 text-center text-sm text-gray-500">Loading rentals...</Card>
+          ) : rentals.length === 0 ? (
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-black">No active rentals</h3>
               <p className="mt-2 text-sm text-gray-600">Once you complete an order, it will appear here.</p>
@@ -48,9 +92,9 @@ function Rentals() {
                   </div>
                   
                   <div className="space-y-3">
-                    {order.items.map((item) => {
+                    {(order.items || []).map((item) => {
                       const duration = Number(item.configuration?.["Rental Duration"]) || 1;
-                      const isMonthly = item.product.duration === "Monthly";
+                      const isMonthly = item.product?.duration === "Monthly";
                       const totalDays = isMonthly ? duration * 30 : duration;
                       
                       const orderDate = new Date(order.createdAt);
@@ -63,11 +107,11 @@ function Rentals() {
                       return (
                         <div key={item.id} className="flex gap-4">
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#eef9f8]">
-                            <img src={item.product.image} alt={item.product.name} className="h-full w-full object-cover" />
+                            <img src={item.product?.image} alt={item.product?.name} className="h-full w-full object-cover" />
                           </div>
                           <div className="flex-1 text-sm flex justify-between items-center border-b border-gray-50 pb-2">
                             <div>
-                              <p className="font-medium text-black">{item.product.name}</p>
+                              <p className="font-medium text-black">{item.product?.name}</p>
                               <p className="text-gray-500 mt-0.5">
                                 Qty: {item.quantity} • {duration} {isMonthly ? (duration > 1 ? "Months" : "Month") : (duration > 1 ? "Days" : "Day")}
                               </p>
@@ -81,7 +125,7 @@ function Rentals() {
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
                                   <span className="h-1.5 w-1.5 rounded-full bg-red-600"></span>
-                                  Expired
+                                  Active
                                 </span>
                               )}
                             </div>

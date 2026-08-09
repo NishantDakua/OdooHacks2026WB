@@ -7,7 +7,7 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
   const now = new Date();
   
   // Scoping for vendor
-  const isVendor = req.user?.role === "ADMIN";
+  const isVendor = req.user?.role === "VENDOR";
   const vendorFilter = isVendor ? { vendorId: req.user.id } : {};
   const orderFilter = isVendor ? {
     lines: { some: { variant: { product: { vendorId: req.user.id } } } }
@@ -78,13 +78,17 @@ const getDashboardMetrics = asyncHandler(async (req, res) => {
 });
 
 const getNotifications = asyncHandler(async (req, res) => {
+  if (!req.user?.id || typeof req.user.id !== "string") {
+    throw new ApiError(401, "Unauthorized - User ID required");
+  }
+
   const notifications = await prisma.notification.findMany({
     where: { recipientId: req.user.id },
     orderBy: { createdAt: "desc" },
     take: 10,
     include: {
       order: {
-        select: { orderNumber: true }
+        select: { id: true, orderNumber: true }
       }
     }
   });

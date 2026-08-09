@@ -12,7 +12,7 @@ function ProductDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const { addToCart } = useCart();
+  const { addToCart, cartCount } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
   const [product, setProduct] = useState(null);
@@ -267,12 +267,24 @@ function ProductDetails() {
 
                 <div className="my-3 shrink-0 border-t border-gray-100" />
 
-                <div className="shrink-0">
-                  <p className="text-xs text-gray-500">Rental price</p>
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="text-3xl font-bold">₹{product.price}</span>
-                    <span className="text-sm text-gray-500">
-                      / {product.duration === "Monthly" ? "month" : "day"}
+                <div className="shrink-0 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500">Rental price</p>
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-3xl font-bold">₹{product.price}</span>
+                      <span className="text-sm text-gray-500">
+                        / {product.duration === "Monthly" ? "month" : "day"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                      product.quantityAvailable > 0
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-red-50 text-red-700 border border-red-200"
+                    }`}>
+                      <span className="h-2 w-2 rounded-full bg-current" />
+                      {product.quantityAvailable > 0 ? `${product.quantityAvailable} Available in Stock` : "Out of Stock"}
                     </span>
                   </div>
                 </div>
@@ -359,7 +371,7 @@ function ProductDetails() {
                     disabled={product.quantityAvailable === 0}
                     className="flex-1 rounded-xl bg-[#4f8c89] py-3 text-sm font-semibold text-white transition hover:bg-[#376c69] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Add to Cart
+                    {product.quantityAvailable === 0 ? "Out of Stock" : "Add to Cart"}
                   </button>
                   <button
                     type="button"
@@ -367,7 +379,7 @@ function ProductDetails() {
                     disabled={product.quantityAvailable === 0}
                     className="flex-1 rounded-xl border border-[#4f8c89] bg-white py-3 text-sm font-semibold text-[#4f8c89] transition hover:bg-[#e9f6f5] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Rent Now
+                    {product.quantityAvailable === 0 ? "Unavailable" : "Rent Now"}
                   </button>
                 </div>
               </div>

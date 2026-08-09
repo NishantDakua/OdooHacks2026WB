@@ -4,6 +4,8 @@ import { adminOrderService } from "../../services/adminOrderService";
 import Card from "../../components/ui/Card";
 import PageLoadingFallback from "../../components/ui/PageLoadingFallback";
 
+import { saveFormDraft, getFormDraft } from "../../lib/db/offlineSync";
+
 function NewRentalOrder() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
@@ -28,6 +30,38 @@ function NewRentalOrder() {
   // Deposit
   const [depositType, setDepositType] = useState("FIXED");
   const [depositAmount, setDepositAmount] = useState(1000);
+
+  // Restore saved draft on initial mount
+  useEffect(() => {
+    async function restoreDraft() {
+      const draft = await getFormDraft("new_rental_order_draft");
+      if (draft) {
+        if (draft.customerId) setCustomerId(draft.customerId);
+        if (draft.pickupType) setPickupType(draft.pickupType);
+        if (draft.rentalStart) setRentalStart(draft.rentalStart);
+        if (draft.rentalEnd) setRentalEnd(draft.rentalEnd);
+        if (draft.status) setStatus(draft.status);
+        if (draft.quantity) setQuantity(draft.quantity);
+        if (draft.depositAmount) setDepositAmount(draft.depositAmount);
+      }
+    }
+    restoreDraft();
+  }, []);
+
+  // Auto-save form draft to IndexedDB when user modifies form inputs
+  useEffect(() => {
+    if (!loading && customerId) {
+      saveFormDraft("new_rental_order_draft", "rental_order", {
+        customerId,
+        pickupType,
+        rentalStart,
+        rentalEnd,
+        status,
+        quantity,
+        depositAmount,
+      });
+    }
+  }, [customerId, pickupType, rentalStart, rentalEnd, status, quantity, depositAmount, loading]);
 
   useEffect(() => {
     const fetchData = async () => {

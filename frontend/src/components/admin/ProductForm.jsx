@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { adminProductService } from "../../services/adminProductService";
 import Card from "../ui/Card";
 
+import ProductImage from "../ui/ProductImage";
+
 function ProductForm({ initialData = null, isEdit = false, onSubmitSuccess }) {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
@@ -139,6 +141,19 @@ function ProductForm({ initialData = null, isEdit = false, onSubmitSuccess }) {
       return;
     }
 
+    // Enforce Available Quantity <= Total Quantity validation rule
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      const total = Number(v.quantityTotal || 0);
+      const avail = Number(v.quantityAvailable || 0);
+      if (avail > total) {
+        setError(
+          `Available Quantity (${avail}) cannot be greater than Total Quantity (${total}) for variant SKU "${v.sku || i + 1}".`
+        );
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setError("");
@@ -273,10 +288,11 @@ function ProductForm({ initialData = null, isEdit = false, onSubmitSuccess }) {
 
             {imageUrl && (
               <div className="mt-3 flex items-center gap-3">
-                <img
+                <ProductImage
                   src={imageUrl}
                   alt="Preview"
-                  className="h-16 w-16 rounded-lg object-cover border border-gray-200"
+                  width={150}
+                  className="h-16 w-16 rounded-xl border border-gray-200"
                 />
                 <button
                   type="button"
@@ -422,15 +438,24 @@ function ProductForm({ initialData = null, isEdit = false, onSubmitSuccess }) {
                 />
               </div>
 
-              <div className="w-24">
+              <div className="w-28">
                 <label className="block text-[11px] font-medium text-gray-500">Available</label>
                 <input
                   type="number"
                   min="0"
                   value={v.quantityAvailable}
                   onChange={(e) => handleVariantChange(idx, "quantityAvailable", Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white p-2 text-xs outline-none focus:border-[#4f8c89]"
+                  className={`mt-1 w-full rounded-lg border bg-white p-2 text-xs outline-none transition ${
+                    Number(v.quantityAvailable) > Number(v.quantityTotal)
+                      ? "border-red-500 text-red-600 focus:ring-2 focus:ring-red-200"
+                      : "border-gray-200 focus:border-[#4f8c89]"
+                  }`}
                 />
+                {Number(v.quantityAvailable) > Number(v.quantityTotal) && (
+                  <span className="text-[10px] font-semibold text-red-500 leading-tight block mt-0.5">
+                    Can't exceed Total
+                  </span>
+                )}
               </div>
 
               {variants.length > 1 && (

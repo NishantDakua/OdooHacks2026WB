@@ -10,12 +10,11 @@ import ProductCard from "../components/ui/ProductCard";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
+import { useCatalogData } from "../hooks/useCatalogData";
+
 function Home() {
   const navigate = useNavigate();
-
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { products, loading, isRevalidating } = useCatalogData();
   const [alertState, setAlertState] = useState({ show: false, message: "" });
 
   const [brand, setBrand] = useState("");
@@ -30,56 +29,13 @@ function Home() {
   const { toggleWishlist, wishlistCount, isInWishlist } = useWishlist();
   const { addToCart, cartCount } = useCart();
 
-  // Debounce search input
+  // Debounce search input (400ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 1500);
+    }, 400);
     return () => clearTimeout(timer);
   }, [search]);
-
-  // Fetch dynamic products directly from database API
-  useEffect(() => {
-    const abortController = new AbortController();
-    
-    const fetchProducts = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch("http://localhost:5000/api/v1/products", {
-          signal: abortController.signal
-        });
-        const json = await res.json();
-        if (json.success && json.data) {
-          const formatted = json.data.map((item) => {
-            const variant = item.variants?.[0] || {};
-            const rule = item.pricelistRules?.[0] || {};
-            return {
-              id: item.id,
-              name: item.name,
-              category: item.category?.name || "General",
-              brand: variant.brand || "Standard",
-              color: variant.color || "Standard",
-              duration: rule.durationUnit === "MONTHLY" ? "Monthly" : "Daily",
-              price: Number(rule.price || 500),
-              image: item.images?.[0] || "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800",
-              quantityAvailable: variant.quantityAvailable || 0,
-            };
-          });
-          setProducts(formatted);
-        }
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError("Unable to load dynamic products from database.");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchProducts();
-    
-    return () => abortController.abort();
-  }, []);
 
   /* ================= CONFIGURE MODAL ================= */
 
@@ -92,13 +48,15 @@ function Home() {
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    if (debouncedSearch.trim()) {
-      const query = debouncedSearch.toLowerCase();
+    const query = debouncedSearch.trim();
+    // Only search if user typed at least 4 characters
+    if (query.length >= 4) {
+      const lowerQuery = query.toLowerCase();
       result = result.filter(
         (product) =>
-          product.name.toLowerCase().includes(query) ||
-          product.category.toLowerCase().includes(query) ||
-          product.brand.toLowerCase().includes(query)
+          product.name.toLowerCase().includes(lowerQuery) ||
+          product.category.toLowerCase().includes(lowerQuery) ||
+          product.brand.toLowerCase().includes(lowerQuery)
       );
     }
 
@@ -185,7 +143,7 @@ function Home() {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search products..."
+                  placeholder="Search products (min 4 characters)..."
                   className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 pr-11 text-sm outline-none transition focus:border-[#4f8c89] focus:bg-white focus:ring-2 focus:ring-[#4f8c89]/10"
                 />
                 <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
@@ -204,6 +162,11 @@ function Home() {
                     />
                   </svg>
                 </div>
+                {search.trim().length > 0 && search.trim().length < 4 && (
+                  <span className="absolute -bottom-5 left-1 text-[11px] font-medium text-amber-600">
+                    Type at least 4 letters to search...
+                  </span>
+                )}
               </div>
 
               <button

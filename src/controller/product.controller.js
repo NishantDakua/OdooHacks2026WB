@@ -32,27 +32,24 @@ const createCategory = asyncHandler(async (req, res) => {
 });
 
 const getProducts = asyncHandler(async (req, res) => {
-  const { categoryId, search, isRentable } = req.query;
+  const { categoryId, search, isRentable, vendorId } = req.query;
 
   const where = {};
-  if (categoryId) where.categoryId = categoryId;
-  if (isRentable !== undefined) where.isRentable = isRentable === "true";
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { description: { contains: search, mode: "insensitive" } },
-    ];
-  }
 
-  // Handle vendor scoping
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "rentease-secret-key-123");
-      if (decoded.role === "ADMIN") {
-        where.vendorId = decoded.id; // vendor sees only their products
-      }
-    } catch (err) {}
+  if (categoryId && categoryId !== "undefined" && categoryId !== "null" && typeof categoryId === "string") {
+    where.categoryId = categoryId;
+  }
+  if (vendorId && vendorId !== "undefined" && vendorId !== "null" && typeof vendorId === "string") {
+    where.vendorId = vendorId;
+  }
+  if (isRentable !== undefined && isRentable !== "undefined" && isRentable !== "null" && isRentable !== "") {
+    where.isRentable = String(isRentable) === "true";
+  }
+  if (search && search !== "undefined" && search !== "null" && typeof search === "string" && search.trim() !== "") {
+    where.OR = [
+      { name: { contains: search.trim(), mode: "insensitive" } },
+      { description: { contains: search.trim(), mode: "insensitive" } },
+    ];
   }
 
   const products = await prisma.product.findMany({
@@ -73,6 +70,10 @@ const getProducts = asyncHandler(async (req, res) => {
 
 const getProductById = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  if (!id || id === "undefined" || id === "null" || typeof id !== "string") {
+    throw new ApiError(400, "Valid product ID is required");
+  }
 
   const product = await prisma.product.findUnique({
     where: { id },
@@ -103,13 +104,13 @@ const uploadProductImage = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Image file is required");
   }
 
-  const cloudinaryResponse = await uploadOnCloudinary(localFilePath);
-  if (!cloudinaryResponse) {
-    throw new ApiError(500, "Failed to upload image to Cloudinary");
+  const uploadResult = await uploadOnCloudinary(localFilePath);
+  if (!uploadResult || !uploadResult.url) {
+    throw new ApiError(500, "Failed to upload image");
   }
 
   return res.status(200).json(
-    new ApiResponse(200, { url: cloudinaryResponse.secure_url }, "Image uploaded to Cloudinary successfully")
+    new ApiResponse(200, { url: uploadResult.url }, "Image uploaded successfully")
   );
 });
 
@@ -152,7 +153,37 @@ const createProduct = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, description, categoryId, isRentable, images } = req.body;
+  const { name, description, categoryId, isRentable, images, variants } = req.body;
+
+  if (Array.isArray(variants) && variants.length > 0) {
+    for (const v of variants) {
+      if (v.id) {
+        await prisma.productVariant.update({
+          where: { id: v.id },
+          data: {
+            ...(v.sku && { sku: v.sku }),
+            ...(v.brand !== undefined && { brand: v.brand }),
+            ...(v.color !== undefined && { color: v.color }),
+            ...(v.size !== undefined && { size: v.size }),
+            quantityTotal: Number(v.quantityTotal || 1),
+            quantityAvailable: Number(v.quantityAvailable ?? v.quantityTotal ?? 1),
+          },
+        });
+      } else {
+        await prisma.productVariant.create({
+          data: {
+            productId: id,
+            sku: v.sku || `${(name || "PRODUCT").toUpperCase().replace(/\s+/g, "_")}_V${Date.now()}`,
+            brand: v.brand || null,
+            color: v.color || null,
+            size: v.size || null,
+            quantityTotal: Number(v.quantityTotal || 1),
+            quantityAvailable: Number(v.quantityAvailable ?? v.quantityTotal ?? 1),
+          },
+        });
+      }
+    }
+  }
 
   const product = await prisma.product.update({
     where: { id },
@@ -184,6 +215,10 @@ const deleteProduct = asyncHandler(async (req, res) => {
 const getProductAvailability = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, quantity = 1, variantId } = req.query;
+
+  if (!id || id === "undefined" || id === "null" || typeof id !== "string") {
+    throw new ApiError(400, "Valid product ID is required");
+  }
 
   if (!startDate || !endDate) {
     throw new ApiError(400, "startDate and endDate are required");
@@ -224,7 +259,7 @@ const getProductAvailability = asyncHandler(async (req, res) => {
     where: {
       variantId: variant.id,
       order: {
-        status: { in: ["CONFIRMED", "PICKED_UP", "ACTIVE"] },
+        status: { in: ["CONFIRMED", "PICKED_UP", "RETURNED"] },
         rentalStart: { lt: end },
         rentalEnd: { gt: start }
       }

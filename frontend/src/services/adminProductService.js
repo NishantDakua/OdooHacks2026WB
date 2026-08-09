@@ -1,3 +1,5 @@
+import { clearCachedProducts } from "../lib/db/catalogCache";
+
 const API_BASE_URL = "http://localhost:5000/api/v1";
 
 const getAuthHeaders = () => {
@@ -44,7 +46,9 @@ export const adminProductService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(productData),
     });
-    return handleResponse(res);
+    const result = await handleResponse(res);
+    await clearCachedProducts();
+    return result;
   },
 
   async updateProduct(id, productData) {
@@ -53,7 +57,9 @@ export const adminProductService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(productData),
     });
-    return handleResponse(res);
+    const result = await handleResponse(res);
+    await clearCachedProducts();
+    return result;
   },
 
   async deleteProduct(id) {
@@ -61,7 +67,9 @@ export const adminProductService = {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
-    return handleResponse(res);
+    const result = await handleResponse(res);
+    await clearCachedProducts();
+    return result;
   },
 
   async getCategories() {
